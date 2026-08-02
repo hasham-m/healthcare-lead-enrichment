@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -76,3 +77,31 @@ class ScrapeRun(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProxyPool(Base):
+    """Proxy records and their current leasing state."""
+
+    __tablename__ = "proxy_pool"
+    __table_args__ = (
+        CheckConstraint(
+            "times_used >= 0",
+            name="CK_proxy_times_used",
+        ),
+        CheckConstraint(
+            "(is_in_use = false AND lease_token IS NULL AND lease_until IS NULL) "
+            "OR (is_in_use = true AND lease_token IS NOT NULL AND lease_until IS NOT NULL)",
+            name="CK_proxy_lease_state",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    proxy_key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    proxy_url: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_in_use: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    times_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_token: Mapped[str | None] = mapped_column(String(255))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

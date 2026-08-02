@@ -16,6 +16,8 @@ if str(_ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(_ROOT_DIR))
 
 from app.directories.helpers import Helpers
+from app.database.create_tables import create_tables
+from app.database.repository import ProfileRepository, ScrapeRunRepository
 
 
 _STATE_NAMES = {
@@ -74,7 +76,9 @@ _STATE_NAMES = {
 
 
 def _directory_location(directory_url: str) -> tuple[str, str]:
-    """Return the full state and city represented by a directory URL."""
+    """This will return the full state and city name which is usually in an abbreviated format in a PT url.
+    This is essential for source_city and source_state columns in the database for better lead sorting"""
+
     parts = [part for part in urlparse(directory_url).path.split("/") if part]
     if len(parts) < 4 or parts[:2] != ["us", "therapists"]:
         return "", ""
@@ -85,7 +89,8 @@ def _directory_location(directory_url: str) -> tuple[str, str]:
 
 
 def _profile_id(profile_url: str) -> str:
-    """Extract the numeric profile ID from a Psychology Today URL."""
+    """Extract the individual profile ID from a Psychology Today URL.
+    This is essential for creating our source_profile_id which helps in deduplication"""
     profile_path = urlparse(profile_url).path.rstrip("/")
     profile_id = profile_path.rsplit("/", 1)[-1]
     return profile_id if profile_id.isdigit() else ""
@@ -206,9 +211,6 @@ def scrape_profile_urls(
         raise ValueError("start_url must include http:// or https://")
     if max_proxy_attempts < 1:
         raise ValueError("max_proxy_attempts must be at least 1")
-
-    from app.database.create_tables import create_tables
-    from app.database.repository import ProfileRepository, ScrapeRunRepository
 
     create_tables()
     source_state, source_city = _directory_location(start_url)

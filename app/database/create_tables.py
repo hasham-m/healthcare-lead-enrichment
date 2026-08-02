@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import create_engine, text
 
-from app.database.models import Base, PsychologyToday
+from app.database.models import Base, PsychologyToday, ProxyPool
 from app.database.repository import database_url
 
 
@@ -15,6 +15,13 @@ def create_tables() -> None:
     Base.metadata.create_all(engine)
     add_created_at_column()
     add_phone_number_column()
+    create_proxy_pool_table()
+
+
+def create_proxy_pool_table() -> None:
+    """Create the proxy_pool table if it does not already exist."""
+    engine = create_engine(database_url())
+    ProxyPool.__table__.create(engine, checkfirst=True)
 
 
 def add_created_at_column() -> None:
@@ -56,4 +63,4 @@ def recreate_tables() -> None:
 
 
 if __name__ == "__main__":
-    create_tables()
+    create_proxy_pool_table()
