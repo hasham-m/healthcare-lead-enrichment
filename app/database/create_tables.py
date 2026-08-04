@@ -16,12 +16,28 @@ def create_tables() -> None:
     add_created_at_column()
     add_phone_number_column()
     create_proxy_pool_table()
+    migrate_proxy_pool_schema()
 
 
 def create_proxy_pool_table() -> None:
     """Create the proxy_pool table if it does not already exist."""
     engine = create_engine(database_url())
     ProxyPool.__table__.create(engine, checkfirst=True)
+
+
+def migrate_proxy_pool_schema() -> None:
+    """Remove the retired proxy_key column and enforce unique proxy URLs."""
+    engine = create_engine(database_url())
+    with engine.begin() as connection:
+        connection.execute(
+            text("ALTER TABLE proxy_pool DROP COLUMN IF EXISTS proxy_key")
+        )
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_proxy_pool_proxy_url "
+                "ON proxy_pool (proxy_url)"
+            )
+        )
 
 
 def add_created_at_column() -> None:
@@ -63,4 +79,4 @@ def recreate_tables() -> None:
 
 
 if __name__ == "__main__":
-    create_proxy_pool_table()
+    migrate_proxy_pool_schema()

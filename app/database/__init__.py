@@ -1,7 +1,7 @@
 """Database models and persistence helpers."""
 
 from .models import ProxyPool, PsychologyToday, ScrapeRun
-from .repository import ProfileRepository, ScrapeRunRepository
+from .repository import ProfileRepository, ProxyPoolRepository, ScrapeRunRepository
 
 __all__ = [
     "PsychologyToday",
@@ -9,4 +9,5 @@ __all__ = [
     "ProxyPool",
     "ProfileRepository",
     "ScrapeRunRepository",
+    "ProxyPoolRepository",
 ]

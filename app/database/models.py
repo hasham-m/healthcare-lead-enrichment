@@ -96,8 +96,7 @@ class ProxyPool(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
-    proxy_key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
-    proxy_url: Mapped[str] = mapped_column(Text, nullable=False)
+    proxy_url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_in_use: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     times_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

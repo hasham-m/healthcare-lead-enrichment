@@ -18,6 +18,7 @@ if str(_ROOT_DIR) not in sys.path:
 from app.directories.helpers import Helpers
 from app.database.create_tables import create_tables
 from app.database.repository import ProfileRepository, ScrapeRunRepository
+from app.infrastructure.proxies.service import ProxyPoolService
 
 
 _STATE_NAMES = {
@@ -213,6 +214,8 @@ def scrape_profile_urls(
         raise ValueError("max_proxy_attempts must be at least 1")
 
     create_tables()
+    proxy_pool_service = ProxyPoolService(proxy_csv_path)
+    proxy_pool_service.sync_from_csv()
     source_state, source_city = _directory_location(start_url)
     profile_repository = ProfileRepository()
     scrape_run_repository = ScrapeRunRepository()
@@ -224,7 +227,7 @@ def scrape_profile_urls(
         next_page_url=start_url,
     )
 
-    proxies = [proxy] if proxy else Helpers.load_proxies(proxy_csv_path)
+    proxies = [proxy] if proxy else proxy_pool_service.active_proxy_urls()
     if not proxies:
         proxies = [None]
     proxy_limit = min(max_proxy_attempts, len(proxies))

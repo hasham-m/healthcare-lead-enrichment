@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.directories.helpers import Helpers
-from app.database.models import PsychologyToday, ScrapeRun
+from app.database.models import ProxyPool, PsychologyToday, ScrapeRun
 
 
 def database_url() -> str:
@@ -121,7 +121,9 @@ class ScrapeRunRepository:
                 setattr(run, field, value)
             session.commit()
 
-    def finish(self, run_id: int, *, status: str, last_error: str | None = None) -> None:
+    def finish(
+        self, run_id: int, *, status: str, last_error: str | None = None
+    ) -> None:
         """Mark a run as completed, failed, or pending."""
         self.update(
             run_id,
@@ -129,3 +131,64 @@ class ScrapeRunRepository:
             last_error=last_error,
             completed_at=datetime.now(timezone.utc) if status != "pending" else None,
         )
+
+
+class ProxyPoolRepository:
+    """Database operations for proxies sourced from a CSV file."""
+
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
+        if session_factory is None:
+            engine = create_engine(database_url())
+            session_factory = sessionmaker(bind=engine)
+        self._session_factory = session_factory
+
+    def sync_csv_proxies(
+        self, proxies: Iterable[Mapping[str, object]]
+    ) -> tuple[int, int, int]:
+        """Reconcile the proxy pool with the current CSV snapshot."""
+        proxy_rows = list(proxies)
+        csv_proxy_urls = {str(proxy["proxy_url"]) for proxy in proxy_rows}
+        added = deactivated = reactivated = 0
+        with self._session_factory() as session:
+            existing_proxies = list(session.scalars(select(ProxyPool)))
+            existing_by_url = {proxy.proxy_url: proxy for proxy in existing_proxies}
+
+            # this for loop deactivates proxies in the database that no longer exist in the csv
+            for current in existing_proxies:
+                if current.proxy_url not in csv_proxy_urls and current.is_active:
+                    current.is_active = False
+                    deactivated += 1
+
+            # this for loop adds the unique and active proxies from the csv to the database
+            for proxy in proxy_rows:
+                proxy_url = str(proxy["proxy_url"])
+                current = existing_by_url.get(proxy_url)
+                if current is None:
+                    session.add(
+                        ProxyPool(
+                            proxy_url=proxy_url,
+                            is_active=bool(proxy["is_active"]),
+                        )
+                    )
+                    added += 1
+                    continue
+
+                is_active = bool(proxy["is_active"])
+                if current.is_active != is_active:
+                    if is_active:
+                        reactivated += 1
+                    else:
+                        deactivated += 1
+                    current.is_active = is_active
+            session.commit()
+        return added, deactivated, reactivated
+
+    def active_proxy_urls(self) -> list[str]:
+        """Return active, currently unleased proxy URLs in stable order."""
+        with self._session_factory() as session:
+            statement = (
+                select(ProxyPool.proxy_url)
+                .where(ProxyPool.is_active.is_(True), ProxyPool.is_in_use.is_(False))
+                .order_by(ProxyPool.id)
+            )
+            return list(session.scalars(statement))
