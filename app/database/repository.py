@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterable, Mapping
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.directories.helpers import Helpers
@@ -192,3 +193,91 @@ class ProxyPoolRepository:
                 .order_by(ProxyPool.id)
             )
             return list(session.scalars(statement))
+
+    def acquire_proxy(self, lease_minutes: int = 10) -> dict[str, object] | None:
+        """Atomically lease the least-used available proxy."""
+        now = datetime.now(timezone.utc)
+        lease_token = uuid4().hex
+        lease_until = now + timedelta(minutes=lease_minutes)
+
+        with self._session_factory() as session:
+            statement = (
+                select(ProxyPool)
+                .where(
+                    ProxyPool.is_active.is_(True),
+                    or_(
+                        ProxyPool.is_in_use.is_(False),
+                        ProxyPool.lease_until <= now,
+                    ),
+                )
+                .order_by(ProxyPool.times_used, ProxyPool.id)
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            proxy = session.scalar(statement)
+            if proxy is None:
+                return None
+
+            proxy.is_in_use = True
+            proxy.lease_token = lease_token
+            proxy.lease_until = lease_until
+            proxy.times_used += 1
+            session.commit()
+            return {
+                "id": proxy.id,
+                "proxy_url": proxy.proxy_url,
+                "lease_token": lease_token,
+                "lease_until": lease_until,
+            }
+
+    def renew_proxy_lease(
+        self, lease_token: str, extension_minutes: int = 5
+    ) -> dict[str, object] | None:
+        """Extend an active lease from its current expiry by five minutes."""
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            statement = (
+                select(ProxyPool)
+                .where(
+                    ProxyPool.lease_token == lease_token,
+                    ProxyPool.is_in_use.is_(True),
+                )
+                .with_for_update()
+            )
+            proxy = session.scalar(statement)
+            if proxy is None:
+                return None
+
+            current_until = proxy.lease_until or now
+            proxy.lease_until = max(current_until, now) + timedelta(
+                minutes=extension_minutes
+            )
+            session.commit()
+            return {
+                "id": proxy.id,
+                "proxy_url": proxy.proxy_url,
+                "lease_token": lease_token,
+                "lease_until": proxy.lease_until,
+            }
+
+    def release_proxy(self, lease_token: str) -> bool:
+        """Release a lease and record when the proxy finished its session."""
+        with self._session_factory() as session:
+            statement = (
+                select(ProxyPool)
+                .where(
+                    ProxyPool.lease_token == lease_token,
+                    ProxyPool.is_in_use.is_(True),
+                )
+                .with_for_update()
+            )
+            proxy = session.scalar(statement)
+            if proxy is None:
+                return False
+
+            proxy.is_in_use = False
+            proxy.lease_token = None
+            proxy.lease_until = None
+            proxy.last_used_at = datetime.now(timezone.utc)
+            session.commit()
+            return True

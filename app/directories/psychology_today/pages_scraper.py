@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urljoin, urlparse
@@ -227,25 +228,36 @@ def scrape_profile_urls(
         next_page_url=start_url,
     )
 
-    proxies = [proxy] if proxy else proxy_pool_service.active_proxy_urls()
-    if not proxies:
-        proxies = [None]
-    proxy_limit = min(max_proxy_attempts, len(proxies))
-
     profile_urls: list[str] = []
     pages: list[dict[str, Any]] = []
     current_url: str | None = start_url
 
     session = None
-    proxy_index = 0
+    proxy_lease = None
     failed_attempts = 0
     try:
+        if not proxy:
+            proxy_lease = proxy_pool_service.acquire_proxy()
+            if proxy_lease is None:
+                raise RuntimeError("No active proxy is available in proxy_pool")
+
         while (
             current_url and len(pages) < max_pages and len(profile_urls) < max_profiles
         ):
+            if proxy_lease and proxy_lease.lease_until <= (
+                datetime.now(timezone.utc) + timedelta(minutes=5)
+            ):
+                proxy_lease = proxy_pool_service.renew_proxy_lease(
+                    proxy_lease.lease_token
+                )
+                if proxy_lease is None:
+                    raise RuntimeError("Could not renew the proxy lease")
+
             if session is None:
                 session_options: dict[str, Any] = {"impersonate": "chrome"}
-                current_proxy = proxies[proxy_index]
+                current_proxy = proxy or (
+                    proxy_lease.proxy_url if proxy_lease else None
+                )
                 if current_proxy:
                     session_options["proxies"] = {
                         "http": current_proxy,
@@ -259,10 +271,16 @@ def scrape_profile_urls(
             except Exception:
                 session.close()
                 session = None
+                if proxy_lease:
+                    proxy_pool_service.release_proxy(proxy_lease.lease_token)
+                    proxy_lease = None
                 failed_attempts += 1
-                if failed_attempts >= proxy_limit:
+                if failed_attempts >= max_proxy_attempts:
                     raise
-                proxy_index += 1
+                if not proxy:
+                    proxy_lease = proxy_pool_service.acquire_proxy()
+                    if proxy_lease is None:
+                        raise RuntimeError("No replacement proxy is available")
                 continue
 
             failed_attempts = 0
@@ -312,6 +330,8 @@ def scrape_profile_urls(
     finally:
         if session is not None:
             session.close()
+        if proxy_lease:
+            proxy_pool_service.release_proxy(proxy_lease.lease_token)
 
     return {
         "profiles": [

@@ -20,10 +20,14 @@ as inactive and counted as deactivated.
   retired `proxy_key` column from existing databases.
 - `app/infrastructure/proxies/csv_loader.py` - validates proxy URLs and CSV
   enabled values with Pydantic.
-- `app/infrastructure/proxies/service.py` - coordinates CSV loading and
-  `proxy_pool` synchronization, returning a Pydantic sync summary.
+- `app/infrastructure/proxies/service.py` - coordinates CSV loading,
+  `proxy_pool` synchronization, and ten-minute proxy leases using Pydantic
+  lease/result models.
 - `app/directories/psychology_today/pages_scraper.py` - synchronizes the CSV
   at scraper startup, then uses active proxy URLs from `proxy_pool`.
 
-`lease_token` and `lease_until` are intentionally not assigned yet; future
-worker-leasing functionality will manage those fields alongside `is_in_use`.
+Proxy acquisition locks the least-used active row with `SKIP LOCKED`, sets
+`is_in_use`, assigns a ten-minute lease, and increments `times_used` once for
+the session. The lease is extended by five minutes when it has five minutes
+remaining. Release clears the lease fields, sets `is_in_use` to false, and
+updates `last_used_at`; `last_checked_at` is left untouched.

@@ -1,5 +1,5 @@
 """CSV-backed proxy synchronization services."""
 
-from .service import ProxyPoolService, ProxySyncResult
+from .service import ProxyLease, ProxyPoolService, ProxySyncResult
 
-__all__ = ["ProxyPoolService", "ProxySyncResult"]
+__all__ = ["ProxyLease", "ProxyPoolService", "ProxySyncResult"]

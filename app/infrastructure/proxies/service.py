@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -17,6 +18,15 @@ class ProxySyncResult(BaseModel):
     added: int
     deactivated: int
     reactivated: int
+
+
+class ProxyLease(BaseModel):
+    """The database lease information assigned to one scraper session."""
+
+    id: int
+    proxy_url: str
+    lease_token: str
+    lease_until: datetime
 
 
 class ProxyPoolService:
@@ -50,3 +60,17 @@ class ProxyPoolService:
     def active_proxy_urls(self) -> list[str]:
         """Return active, available proxy URLs from proxy_pool."""
         return self._repository.active_proxy_urls()
+
+    def acquire_proxy(self) -> ProxyLease | None:
+        """Lease the least-used active proxy for ten minutes."""
+        lease = self._repository.acquire_proxy(lease_minutes=10)
+        return ProxyLease.model_validate(lease) if lease else None
+
+    def renew_proxy_lease(self, lease_token: str) -> ProxyLease | None:
+        """Extend an active lease by five minutes."""
+        lease = self._repository.renew_proxy_lease(lease_token, extension_minutes=5)
+        return ProxyLease.model_validate(lease) if lease else None
+
+    def release_proxy(self, lease_token: str) -> bool:
+        """Release a proxy lease after the session ends."""
+        return self._repository.release_proxy(lease_token)
