@@ -17,8 +17,9 @@ if str(_ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(_ROOT_DIR))
 
 from app.directories.helpers import Helpers
+from app.directories.scrape_runs import ScrapeRunManager
 from app.database.create_tables import create_tables
-from app.database.repository import ProfileRepository, ScrapeRunRepository
+from app.database.repository import ProfileRepository
 from app.infrastructure.proxies.service import ProxyPoolService
 
 
@@ -205,6 +206,7 @@ def scrape_profile_urls(
     proxy: str | None = None,
     proxy_csv_path: str | Path | None = None,
     max_proxy_attempts: int = 3,
+    resume_run_id: int | None = None,
 ) -> dict[str, Any]:
     """Scrape profile URLs with one session and rotate proxies on page failures."""
     if max_profiles < 1 or max_pages < 1:
@@ -213,24 +215,38 @@ def scrape_profile_urls(
         raise ValueError("start_url must include http:// or https://")
     if max_proxy_attempts < 1:
         raise ValueError("max_proxy_attempts must be at least 1")
+    if resume_run_id is not None and resume_run_id < 1:
+        raise ValueError("resume_run_id must be at least 1")
 
     create_tables()
     proxy_pool_service = ProxyPoolService(proxy_csv_path)
     proxy_pool_service.sync_from_csv()
     source_state, source_city = _directory_location(start_url)
     profile_repository = ProfileRepository()
-    scrape_run_repository = ScrapeRunRepository()
-    scrape_run = scrape_run_repository.start(
-        directory=Helpers.directory_name(start_url),
-        start_url=start_url,
-        target_profile=max_profiles,
-        max_pages=max_pages,
-        next_page_url=start_url,
-    )
+    scrape_run_manager = ScrapeRunManager()
+    if resume_run_id is not None:
+        scrape_run = scrape_run_manager.resume(resume_run_id)
+        if scrape_run.start_url != start_url:
+            raise ValueError("resume_run_id does not belong to start_url")
+        max_profiles = scrape_run.target_profile
+        max_pages = scrape_run.max_pages
+        current_url = scrape_run.next_page_url
+        pages_completed = scrape_run.pages_completed
+        unique_profile_count = scrape_run.unique_profile
+    else:
+        scrape_run = scrape_run_manager.start(
+            directory=Helpers.directory_name(start_url),
+            start_url=start_url,
+            target_profile=max_profiles,
+            max_pages=max_pages,
+            next_page_url=start_url,
+        )
+        current_url = start_url
+        pages_completed = 0
+        unique_profile_count = 0
 
     profile_urls: list[str] = []
     pages: list[dict[str, Any]] = []
-    current_url: str | None = start_url
 
     session = None
     proxy_lease = None
@@ -242,7 +258,9 @@ def scrape_profile_urls(
                 raise RuntimeError("No active proxy is available in proxy_pool")
 
         while (
-            current_url and len(pages) < max_pages and len(profile_urls) < max_profiles
+            current_url
+            and pages_completed < max_pages
+            and unique_profile_count < max_profiles
         ):
             if proxy_lease and proxy_lease.lease_until <= (
                 datetime.now(timezone.utc) + timedelta(minutes=5)
@@ -268,6 +286,8 @@ def scrape_profile_urls(
             try:
                 response = session.get(current_url, timeout=30)
                 response.raise_for_status()
+            except KeyboardInterrupt:
+                raise
             except Exception:
                 session.close()
                 session = None
@@ -288,7 +308,8 @@ def scrape_profile_urls(
             for profile_url in found_urls:
                 if profile_url not in profile_urls:
                     profile_urls.append(profile_url)
-                    if len(profile_urls) >= max_profiles:
+                    unique_profile_count += 1
+                    if unique_profile_count >= max_profiles:
                         break
 
             profile_repository.save_scraped_profiles(
@@ -303,30 +324,31 @@ def scrape_profile_urls(
                 for profile_url in found_urls
             )
             pages.append({"url": current_url, "profile_urls": found_urls})
-            scrape_run_repository.update(
+            pages_completed += 1
+            scrape_run_manager.update(
                 scrape_run.id,
-                pages_completed=len(pages),
-                unique_profile=len(profile_urls),
+                pages_completed=pages_completed,
+                unique_profile=unique_profile_count,
                 last_completed_page_url=current_url,
                 next_page_url=next_url,
             )
             current_url = next_url
     except KeyboardInterrupt:
-        scrape_run_repository.finish(
+        scrape_run_manager.finish(
             scrape_run.id,
             status="pending",
             last_error="Scrape interrupted by user",
         )
         raise
     except Exception as exc:
-        scrape_run_repository.finish(
+        scrape_run_manager.finish(
             scrape_run.id,
             status="failed",
             last_error=str(exc),
         )
         raise
     else:
-        scrape_run_repository.finish(scrape_run.id, status="completed")
+        scrape_run_manager.finish(scrape_run.id, status="completed")
     finally:
         if session is not None:
             session.close()

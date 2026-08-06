@@ -49,6 +49,19 @@ class PsychologyToday(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    client_focus_primary: Mapped[str | None] = mapped_column(Text)
+    client_focus_secondary: Mapped[str | None] = mapped_column(Text)
+    insurance_details: Mapped[str | None] = mapped_column(Text)
+    payment_category: Mapped[str | None] = mapped_column(Text)
+    fee_raw: Mapped[str | None] = mapped_column(Text)
+    fee_clean: Mapped[str | None] = mapped_column(Text)
+    availability_status: Mapped[str | None] = mapped_column(Text)
+    number_of_cities_served: Mapped[int | None] = mapped_column(Integer)
+    service_area_cities: Mapped[str | None] = mapped_column(Text)
+    evidence_snippets: Mapped[str | None] = mapped_column(Text)
+    category_score: Mapped[float | None] = mapped_column(Float)
+    category_evidence: Mapped[str | None] = mapped_column(Text)
+    all_pages_text: Mapped[str | None] = mapped_column(Text)
 
 
 class ScrapeRun(Base):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 from uuid import uuid4
 
 from sqlalchemy import create_engine, or_, select
@@ -132,6 +133,38 @@ class ScrapeRunRepository:
             last_error=last_error,
             completed_at=datetime.now(timezone.utc) if status != "pending" else None,
         )
+
+    def get_resumable(
+        self,
+        run_id: int | None = None,
+        *,
+        status: Literal["pending", "failed"] | None = None,
+        directory: str | None = None,
+        start_url: str | None = None,
+    ) -> ScrapeRun | None:
+        """Find a pending or failed run with a saved next page URL."""
+        statement = select(ScrapeRun).where(ScrapeRun.next_page_url.is_not(None))
+        if status is None:
+            statement = statement.where(ScrapeRun.status.in_(("pending", "failed")))
+        else:
+            statement = statement.where(ScrapeRun.status == status)
+        statement = statement.order_by(
+            ScrapeRun.created_at.asc(), ScrapeRun.id.asc()
+        )
+        if run_id is not None:
+            statement = statement.where(ScrapeRun.id == run_id)
+        if directory is not None:
+            statement = statement.where(ScrapeRun.directory == directory)
+        if start_url is not None:
+            statement = statement.where(ScrapeRun.start_url == start_url)
+
+        with self._session_factory() as session:
+            return session.scalar(statement)
+
+    def get_by_id(self, run_id: int) -> ScrapeRun | None:
+        """Find a scrape run by its database ID."""
+        with self._session_factory() as session:
+            return session.get(ScrapeRun, run_id)
 
 
 class ProxyPoolRepository:

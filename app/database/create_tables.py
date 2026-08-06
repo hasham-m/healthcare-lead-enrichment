@@ -15,6 +15,7 @@ def create_tables() -> None:
     Base.metadata.create_all(engine)
     add_created_at_column()
     add_phone_number_column()
+    add_psychology_today_columns()
     create_proxy_pool_table()
     migrate_proxy_pool_schema()
 
@@ -63,6 +64,34 @@ def add_phone_number_column() -> None:
                 "ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50)"
             )
         )
+
+
+def add_psychology_today_columns() -> None:
+    """Append CSV fields missing from existing Psychology Today tables."""
+    engine = create_engine(database_url())
+    columns = (
+        ("client_focus_primary", "TEXT"),
+        ("client_focus_secondary", "TEXT"),
+        ("insurance_details", "TEXT"),
+        ("payment_category", "TEXT"),
+        ("fee_raw", "TEXT"),
+        ("fee_clean", "TEXT"),
+        ("availability_status", "TEXT"),
+        ("number_of_cities_served", "INTEGER"),
+        ("service_area_cities", "TEXT"),
+        ("evidence_snippets", "TEXT"),
+        ("category_score", "DOUBLE PRECISION"),
+        ("category_evidence", "TEXT"),
+        ("all_pages_text", "TEXT"),
+    )
+    with engine.begin() as connection:
+        for name, data_type in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE psychology_today "
+                    f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
+                )
+            )
 
 
 def drop_psychology_today_table() -> None:
