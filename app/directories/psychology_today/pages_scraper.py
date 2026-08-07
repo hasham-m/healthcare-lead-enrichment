@@ -79,8 +79,8 @@ _STATE_NAMES = {
 
 
 def _directory_location(directory_url: str) -> tuple[str, str]:
-    """This will return the full state and city name which is usually in an abbreviated format in a PT url.
-    This is essential for source_city and source_state columns in the database for better lead sorting"""
+    # This will return the full state and city name which is usually in an abbreviated format in a PT url.
+    # This is essential for source_city and source_state columns in the database for better lead sorting
 
     parts = [part for part in urlparse(directory_url).path.split("/") if part]
     if len(parts) < 4 or parts[:2] != ["us", "therapists"]:
@@ -92,8 +92,9 @@ def _directory_location(directory_url: str) -> tuple[str, str]:
 
 
 def _profile_id(profile_url: str) -> str:
-    """Extract the individual profile ID from a Psychology Today URL.
-    This is essential for creating our source_profile_id which helps in deduplication"""
+    # Extract the individual profile ID from a Psychology Today URL.
+    # This is essential for creating our source_profile_id which helps in deduplication
+
     profile_path = urlparse(profile_url).path.rstrip("/")
     profile_id = profile_path.rsplit("/", 1)[-1]
     return profile_id if profile_id.isdigit() else ""
@@ -320,6 +321,7 @@ def scrape_profile_urls(
                     "profile_url": profile_url,
                     "source_city": source_city,
                     "source_state": source_state,
+                    "profile_scrape_status": "pending",
                 }
                 for profile_url in found_urls
             )

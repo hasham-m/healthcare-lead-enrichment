@@ -59,6 +59,7 @@ class ProfileRepository:
                 profile_url=profile["profile_url"],
                 source_city=profile["source_city"],
                 source_state=profile["source_state"],
+                profile_scrape_status=profile.get("profile_scrape_status", "pending"),
             )
             for profile in profiles
             if profile.get("profile_id")

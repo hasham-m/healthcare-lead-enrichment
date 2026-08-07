@@ -16,6 +16,9 @@ def create_tables() -> None:
     add_created_at_column()
     add_phone_number_column()
     add_psychology_today_columns()
+    add_profile_scrape_columns()
+    add_website_scrape_columns()
+    add_profile_identity_and_processing_columns()
     create_proxy_pool_table()
     migrate_proxy_pool_schema()
 
@@ -94,6 +97,63 @@ def add_psychology_today_columns() -> None:
             )
 
 
+def add_profile_scrape_columns() -> None:
+    """Append profile-level scraping status fields to Psychology Today."""
+    engine = create_engine(database_url())
+    columns = (
+        ("profile_scrape_status", "VARCHAR(30)"),
+        ("profile_scrape_attempts", "INTEGER"),
+        ("profile_scrape_last_error", "TEXT"),
+        ("profile_scraped_at", "TIMESTAMP WITH TIME ZONE"),
+    )
+    with engine.begin() as connection:
+        for name, data_type in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE psychology_today "
+                    f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
+                )
+                )
+
+
+def add_website_scrape_columns() -> None:
+    """Append website-level scraping status fields to Psychology Today."""
+    engine = create_engine(database_url())
+    columns = (
+        ("website_scrape_status", "VARCHAR(30)"),
+        ("website_scrape_attempts", "INTEGER"),
+        ("website_scrape_last_error", "TEXT"),
+        ("website_scraped_at", "TIMESTAMP WITH TIME ZONE"),
+    )
+    with engine.begin() as connection:
+        for name, data_type in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE psychology_today "
+                    f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
+                )
+                )
+
+
+def add_profile_identity_and_processing_columns() -> None:
+    """Append profile identity and processing flags to Psychology Today."""
+    engine = create_engine(database_url())
+    columns = (
+        ("first_name", "VARCHAR(150)"),
+        ("last_name", "VARCHAR(150)"),
+        ("profile_is_processing", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("website_is_processing", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    )
+    with engine.begin() as connection:
+        for name, data_type in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE psychology_today "
+                    f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
+                )
+            )
+
+
 def drop_psychology_today_table() -> None:
     """Drop the existing Psychology Today table, if it exists."""
     engine = create_engine(database_url())
@@ -108,4 +168,6 @@ def recreate_tables() -> None:
 
 
 if __name__ == "__main__":
-    migrate_proxy_pool_schema()
+    add_profile_scrape_columns()
+    add_website_scrape_columns()
+    add_profile_identity_and_processing_columns()

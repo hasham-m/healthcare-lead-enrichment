@@ -62,6 +62,26 @@ class PsychologyToday(Base):
     category_score: Mapped[float | None] = mapped_column(Float)
     category_evidence: Mapped[str | None] = mapped_column(Text)
     all_pages_text: Mapped[str | None] = mapped_column(Text)
+    profile_scrape_status: Mapped[str | None] = mapped_column(String(30))
+    profile_scrape_attempts: Mapped[int | None] = mapped_column(Integer)
+    profile_scrape_last_error: Mapped[str | None] = mapped_column(Text)
+    profile_scraped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    website_scrape_status: Mapped[str | None] = mapped_column(String(30))
+    website_scrape_attempts: Mapped[int | None] = mapped_column(Integer)
+    website_scrape_last_error: Mapped[str | None] = mapped_column(Text)
+    website_scraped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    first_name: Mapped[str | None] = mapped_column(String(150))
+    last_name: Mapped[str | None] = mapped_column(String(150))
+    profile_is_processing: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    website_is_processing: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
 
 class ScrapeRun(Base):
