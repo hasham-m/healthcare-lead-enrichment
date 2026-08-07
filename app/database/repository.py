@@ -144,13 +144,31 @@ class ScrapeRunRepository:
     ) -> ScrapeRun | None:
         """Find a pending or failed run with a saved next page URL."""
         statement = select(ScrapeRun).where(ScrapeRun.next_page_url.is_not(None))
+        with self._session_factory() as session:
+            running_statement = statement.where(
+                ScrapeRun.completed_at.is_(None),
+                ScrapeRun.status == "running",
+            ).order_by(
+                ScrapeRun.created_at.asc(),
+                ScrapeRun.id.asc(),
+            )
+
+            running_run = session.scalar(running_statement)
+            if running_run is not None:
+                return running_run
+
         if status is None:
-            statement = statement.where(ScrapeRun.status.in_(("pending", "failed")))
+            statement = statement.where(
+                ScrapeRun.status.in_(
+                    (
+                        "pending",
+                        "failed",
+                    )
+                )
+            )
         else:
             statement = statement.where(ScrapeRun.status == status)
-        statement = statement.order_by(
-            ScrapeRun.created_at.asc(), ScrapeRun.id.asc()
-        )
+        statement = statement.order_by(ScrapeRun.created_at.asc(), ScrapeRun.id.asc())
         if run_id is not None:
             statement = statement.where(ScrapeRun.id == run_id)
         if directory is not None:

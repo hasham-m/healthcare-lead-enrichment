@@ -75,7 +75,7 @@ class ScrapeRunManager:
         self,
         run_id: int | None = None,
         *,
-        status: Literal["pending", "failed"] | None = None,
+        status: Literal["pending", "failed", "running"] | None = None,
         directory: str | None = None,
         start_url: str | None = None,
     ) -> ScrapeRunState | None:
