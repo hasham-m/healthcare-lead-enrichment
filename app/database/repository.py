@@ -79,6 +79,126 @@ class ProfileRepository:
             return session.scalar(statement)
 
 
+class PsychologyTodayProfileRepository:
+    # Repository for getting and enriching individual Psychology today therapist profiles
+
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
+        if session_factory is None:
+            engine = create_engine(database_url())
+            session_factory = sessionmaker(bind=engine)
+        self._session_factory = session_factory
+
+    def claim_next_profile(
+        self,
+        *,
+        status: Literal["pending", "failed"] = "pending",
+        created_since: datetime | None = None,
+        source_city: str | None = None,
+        source_state: str | None = None,
+        source_profile_id: str | None = None,
+    ) -> dict[str, object] | None:
+        """Atomically claim one eligible profile for a worker.
+
+        The row is locked only during the database transaction. Before the lock
+        is released, the worker flag is set and the attempt count is increased.
+        ``SKIP LOCKED`` allows multiple workers to claim different rows safely.
+        """
+        filters = [
+            PsychologyToday.profile_scrape_status == status,
+            PsychologyToday.profile_is_processing.is_(False),
+        ]
+        if created_since is not None:
+            filters.append(PsychologyToday.created_at >= created_since)
+        if source_city is not None:
+            filters.append(PsychologyToday.source_city == source_city)
+        if source_state is not None:
+            filters.append(PsychologyToday.source_state == source_state)
+        if source_profile_id is not None:
+            filters.append(PsychologyToday.source_profile_id == source_profile_id)
+
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(*filters)
+                .order_by(PsychologyToday.id.asc())
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return None
+
+            profile.profile_is_processing = True
+            profile.profile_scrape_attempts = (profile.profile_scrape_attempts or 0) + 1
+            profile.profile_scrape_last_error = None
+            session.flush()
+
+            claimed_profile = {
+                column.name: getattr(profile, column.name)
+                for column in PsychologyToday.__table__.columns
+            }
+            session.commit()
+            return claimed_profile
+
+    def complete_profile(
+        self,
+        source_profile_id: str,
+        values: Mapping[str, object] | None = None,
+    ) -> bool:
+        """Save profile enrichment data and mark the profile completed."""
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(PsychologyToday.source_profile_id == source_profile_id)
+                .with_for_update()
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return False
+
+            # returning enriched data to the database for each individual PT profile and marking the profile as completed
+            for field, value in (values or {}).items():
+                if field not in PsychologyToday.__table__.columns:
+                    raise ValueError(f"Unknown Psychology Today profile field: {field}")
+                if field in {
+                    "source_profile_id",
+                    "id",
+                    "profile_scrape_status",
+                    "profile_is_processing",
+                    "profile_scraped_at",
+                }:
+                    raise ValueError(
+                        f"Field cannot be changed during completion: {field}"
+                    )
+                setattr(profile, field, value)
+
+            profile.profile_scrape_status = "completed"
+            profile.profile_is_processing = False
+            profile.profile_scraped_at = datetime.now(timezone.utc)
+            if profile.website_resolution_status is None:
+                profile.website_resolution_status = "pending"
+            session.commit()
+            return True
+
+    def fail_profile(self, source_profile_id: str, error: str) -> bool:
+        """Record a profile scrape failure and release its processing flag."""
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(PsychologyToday.source_profile_id == source_profile_id)
+                .with_for_update()
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return False
+
+            profile.profile_scrape_status = "failed"
+            profile.profile_scrape_last_error = error
+            profile.profile_is_processing = False
+            session.commit()
+            return True
+
+
 class ScrapeRunRepository:
     """Repository for tracking directory scrape progress."""
 

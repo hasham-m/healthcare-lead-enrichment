@@ -19,6 +19,7 @@ def create_tables() -> None:
     add_profile_scrape_columns()
     add_website_scrape_columns()
     add_profile_identity_and_processing_columns()
+    add_website_resolution_columns()
     create_proxy_pool_table()
     migrate_proxy_pool_schema()
 
@@ -151,6 +152,25 @@ def add_profile_identity_and_processing_columns() -> None:
                     f"ALTER TABLE psychology_today "
                     f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
                 )
+                )
+
+
+def add_website_resolution_columns() -> None:
+    """Append website-resolution tracking fields to Psychology Today."""
+    engine = create_engine(database_url())
+    columns = (
+        ("website_resolution_status", "VARCHAR(30)"),
+        ("website_resolution_attempts", "INTEGER"),
+        ("website_resolution_last_error", "TEXT"),
+        ("website_resolved_at", "TIMESTAMP WITH TIME ZONE"),
+    )
+    with engine.begin() as connection:
+        for name, data_type in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE psychology_today "
+                    f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
+                )
             )
 
 
@@ -171,3 +191,4 @@ if __name__ == "__main__":
     add_profile_scrape_columns()
     add_website_scrape_columns()
     add_profile_identity_and_processing_columns()
+    add_website_resolution_columns()

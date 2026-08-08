@@ -82,6 +82,12 @@ class PsychologyToday(Base):
     website_is_processing: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    website_resolution_status: Mapped[str | None] = mapped_column(String(30))
+    website_resolution_attempts: Mapped[int | None] = mapped_column(Integer)
+    website_resolution_last_error: Mapped[str | None] = mapped_column(Text)
+    website_resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
 
 class ScrapeRun(Base):
