@@ -20,6 +20,7 @@ def create_tables() -> None:
     add_website_scrape_columns()
     add_profile_identity_and_processing_columns()
     add_website_resolution_columns()
+    add_pt_website_redirect_column()
     create_proxy_pool_table()
     migrate_proxy_pool_schema()
 
@@ -171,7 +172,19 @@ def add_website_resolution_columns() -> None:
                     f"ALTER TABLE psychology_today "
                     f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
                 )
+                )
+
+
+def add_pt_website_redirect_column() -> None:
+    """Append the Psychology Today website redirect URL column."""
+    engine = create_engine(database_url())
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE psychology_today "
+                "ADD COLUMN IF NOT EXISTS pt_website_redirect TEXT"
             )
+        )
 
 
 def drop_psychology_today_table() -> None:
@@ -192,3 +205,4 @@ if __name__ == "__main__":
     add_website_scrape_columns()
     add_profile_identity_and_processing_columns()
     add_website_resolution_columns()
+    add_pt_website_redirect_column()

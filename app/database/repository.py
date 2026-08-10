@@ -198,6 +198,24 @@ class PsychologyTodayProfileRepository:
             session.commit()
             return True
 
+    def release_profile_claim(self, source_profile_id: str, error: str) -> bool:
+        """Return a claimed profile to pending after a retryable interruption."""
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(PsychologyToday.source_profile_id == source_profile_id)
+                .with_for_update()
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return False
+
+            profile.profile_scrape_status = "pending"
+            profile.profile_scrape_last_error = error
+            profile.profile_is_processing = False
+            session.commit()
+            return True
+
 
 class ScrapeRunRepository:
     """Repository for tracking directory scrape progress."""

@@ -49,3 +49,26 @@ from that URL.
 On Windows, use `Ctrl+C` to interrupt the process. `Ctrl+Z` is not a process
 interrupt signal in the Windows console; it behaves as input EOF and cannot be
 reliably used to raise `KeyboardInterrupt` inside an HTTP request.
+
+## Psychology Today profile enrichment
+
+- `app/directories/schemas.py` - Pydantic contracts for profiles claimed from
+  the database, parsed profile enrichment fields, and async worker summaries.
+- `app/directories/psychology_today/profile_enrichment.py` - pure HTML parser
+  for individual Psychology Today profiles. It extracts names, phone number,
+  the Psychology Today website redirect (or `__unavailable__`), specialties,
+  client focus, insurance/payment category, fees, and availability.
+- `app/directories/psychology_today/profile_scraper.py` - async worker
+  coordinator. Workers claim pending profiles directly from PostgreSQL using
+  `PsychologyTodayProfileRepository`, obtain one proxy lease per profile HTTP
+  session, request and parse the profile, then persist the enriched fields.
+- `app/database/repository.py` - `PsychologyTodayProfileRepository` now also
+  exposes `release_profile_claim()` for retryable errors. It returns the row to
+  `pending`, records the error, and clears `profile_is_processing`.
+
+`scrape_pending_profiles()` supports optional `created_since`, `source_city`,
+and `source_state` filters. A successful scrape sets
+`profile_scrape_status=completed`, clears `profile_is_processing`, stamps
+`profile_scraped_at` in UTC, and queues website scraping by setting a null
+`website_scrape_status` to `pending`. Retryable errors return the profile to
+pending; after the configured attempt limit, the profile is marked failed.

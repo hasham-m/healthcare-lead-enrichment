@@ -88,6 +88,7 @@ class PsychologyToday(Base):
     website_resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
+    pt_website_redirect: Mapped[str | None] = mapped_column(Text)
 
 
 class ScrapeRun(Base):
