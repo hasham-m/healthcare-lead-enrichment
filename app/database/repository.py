@@ -175,8 +175,12 @@ class PsychologyTodayProfileRepository:
             profile.profile_scrape_status = "completed"
             profile.profile_is_processing = False
             profile.profile_scraped_at = datetime.now(timezone.utc)
-            if profile.website_resolution_status is None:
+            if (
+                profile.pt_website_redirect
+                and profile.pt_website_redirect != "__unavailable__"
+            ):
                 profile.website_resolution_status = "pending"
+                profile.website_resolution_last_error = None
             session.commit()
             return True
 
@@ -213,6 +217,128 @@ class PsychologyTodayProfileRepository:
             profile.profile_scrape_status = "pending"
             profile.profile_scrape_last_error = error
             profile.profile_is_processing = False
+            session.commit()
+            return True
+
+
+class PsychologyTodayWebsiteResolutionRepository:
+    """Claim and finalize Psychology Today website redirect resolution work."""
+
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
+        if session_factory is None:
+            engine = create_engine(database_url())
+            session_factory = sessionmaker(bind=engine)
+        self._session_factory = session_factory
+
+    def claim_next_redirect(
+        self,
+        *,
+        status: Literal["pending", "failed"] = "pending",
+        created_since: datetime | None = None,
+        source_city: str | None = None,
+        source_state: str | None = None,
+    ) -> dict[str, object] | None:
+        """Atomically claim one available Psychology Today website redirect."""
+        filters = [
+            PsychologyToday.website_resolution_status == status,
+            PsychologyToday.pt_website_redirect.is_not(None),
+            PsychologyToday.pt_website_redirect != "__unavailable__",
+            PsychologyToday.website_redirect_url_is_processing.is_(False),
+        ]
+        if created_since is not None:
+            filters.append(PsychologyToday.created_at >= created_since)
+        if source_city is not None:
+            filters.append(PsychologyToday.source_city == source_city)
+        if source_state is not None:
+            filters.append(PsychologyToday.source_state == source_state)
+
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(*filters)
+                .order_by(PsychologyToday.id.asc())
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return None
+
+            profile.website_redirect_url_is_processing = True
+            profile.website_resolution_attempts = (
+                profile.website_resolution_attempts or 0
+            ) + 1
+            profile.website_resolution_last_error = None
+            session.flush()
+            claimed_redirect = {
+                "id": profile.id,
+                "source_profile_id": profile.source_profile_id,
+                "pt_website_redirect": profile.pt_website_redirect,
+                "website_resolution_attempts": profile.website_resolution_attempts,
+            }
+            session.commit()
+            return claimed_redirect
+
+    def complete_resolution(self, source_profile_id: str, website_url: str) -> bool:
+        """Store the resolved URL and queue its website scrape."""
+        if not website_url.strip():
+            raise ValueError("website_url must not be empty")
+
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(PsychologyToday.source_profile_id == source_profile_id)
+                .with_for_update()
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return False
+
+            profile.website_url = website_url.strip()
+            profile.website_resolution_status = "completed"
+            profile.website_resolution_last_error = None
+            profile.website_redirect_url_is_processing = False
+            profile.website_resolved_at = datetime.now(timezone.utc)
+            profile.website_scrape_status = "pending"
+            session.commit()
+            return True
+
+    def fail_resolution(self, source_profile_id: str, error: str) -> bool:
+        """Record a terminal website redirect resolution failure."""
+        return self._finish_resolution(
+            source_profile_id,
+            status="failed",
+            error=error,
+        )
+
+    def release_resolution_claim(self, source_profile_id: str, error: str) -> bool:
+        """Return a retryable redirect-resolution failure to pending."""
+        return self._finish_resolution(
+            source_profile_id,
+            status="pending",
+            error=error,
+        )
+
+    def _finish_resolution(
+        self,
+        source_profile_id: str,
+        *,
+        status: Literal["pending", "failed"],
+        error: str,
+    ) -> bool:
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(PsychologyToday.source_profile_id == source_profile_id)
+                .with_for_update()
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return False
+
+            profile.website_resolution_status = status
+            profile.website_resolution_last_error = error
+            profile.website_redirect_url_is_processing = False
             session.commit()
             return True
 

@@ -71,9 +71,17 @@ and `source_state` filters. It also accepts `created_within_hours` for a
 user-friendly UTC lookback window, such as `created_within_hours=24`.
 A successful scrape sets
 `profile_scrape_status=completed`, clears `profile_is_processing`, stamps
-`profile_scraped_at` in UTC, and queues website scraping by setting a null
-`website_scrape_status` to `pending`. Retryable errors return the profile to
-pending; after the configured attempt limit, the profile is marked failed.
+`profile_scraped_at` in UTC, and queues an available Psychology Today redirect
+for resolution. Retryable errors return the profile to pending; after the
+configured attempt limit, the profile is marked failed.
+
+`PsychologyTodayWebsiteResolutionRepository` owns the next lifecycle stage.
+An available `pt_website_redirect` queues `website_resolution_status=pending`
+after profile enrichment; `__unavailable__` redirects are ignored. Resolution
+claims use `SKIP LOCKED`, set `website_redirect_url_is_processing`, and increase
+`website_resolution_attempts`. A successful resolution stores `website_url`,
+sets the resolution status to `completed`, stamps `website_resolved_at` in UTC,
+and only then queues `website_scrape_status=pending`.
 
 The profile parser reads leaf `div` values in Practice at a Glance (including
 waitlist/not-accepting availability messages) and reads Client Focus values
