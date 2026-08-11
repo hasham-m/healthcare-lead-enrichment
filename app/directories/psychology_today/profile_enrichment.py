@@ -50,6 +50,12 @@ def enrich_profile(html: str, profile_url: str) -> ProfileEnrichment:
             *_split_focus_items(
                 _subsection_items(soup, "Client Focus", "Participants")
             ),
+            *_split_focus_items(
+                _subsection_items(soup, "Client Focus", "Communities")
+            ),
+            *_split_focus_items(
+                _subsection_items(soup, "Client Focus", "Ethnicity")
+            ),
         ]
     )
     insurance_items = _unique(_subsection_items(soup, "Finances", "Insurance"))
@@ -110,7 +116,10 @@ def _section_text(soup: BeautifulSoup, title: str) -> str:
 
     values: list[str] = []
     for element in _section_elements(heading):
-        if element.name in {"h3", "p", "li"}:
+        is_leaf_div = element.name == "div" and not element.find(
+            ("div", "h3", "p", "li")
+        )
+        if element.name in {"h3", "p", "li"} or is_leaf_div:
             value = _text(element)
             if value:
                 values.append(value)
@@ -137,7 +146,11 @@ def _subsection_items(soup: BeautifulSoup, section: str, subsection: str) -> lis
             continue
         if element.name in {"h2", "h3"}:
             break
-        if element.name == "li":
+        is_attribute_span = (
+            element.name == "span"
+            and str(element.get("data-x", "")).startswith("attribute-")
+        )
+        if element.name == "li" or is_attribute_span:
             value = _text(element)
             if value:
                 values.append(value)

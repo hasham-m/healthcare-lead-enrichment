@@ -72,3 +72,24 @@ and `source_state` filters. A successful scrape sets
 `profile_scraped_at` in UTC, and queues website scraping by setting a null
 `website_scrape_status` to `pending`. Retryable errors return the profile to
 pending; after the configured attempt limit, the profile is marked failed.
+
+The profile parser reads leaf `div` values in Practice at a Glance (including
+waitlist/not-accepting availability messages) and reads Client Focus values
+from semantic `span[data-x="attribute-…"]` elements. It combines Age,
+Participants, Communities, and Ethnicity while avoiding duplicate layout
+containers.
+
+## Manual Psychology Today enrichment CSV test
+
+`tests/psychology_today/validation/pt_profile_enrichment_validation.py` is a
+database-safe manual test for parser review. It contains the selected profile
+URLs, fetches them concurrently through the normal proxy leases, validates each
+parser result with `ProfileEnrichment` and `EnrichmentCsvRow` Pydantic models,
+and writes `pt_profile_enrichment_results.csv` to the repository root. It does
+not claim, insert, or update rows in `psychology_today`; only the normal
+`proxy_pool` lease/usage bookkeeping is exercised.
+
+`tests/psychology_today/fixtures` contains short, version-controlled HTML
+snippets. `tests/psychology_today/regression/test_profile_enrichment_regressions.py`
+uses those fixtures to protect parser behavior without network, proxy, or
+database access.
