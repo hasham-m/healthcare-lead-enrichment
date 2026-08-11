@@ -11,6 +11,7 @@ from curl_cffi import requests
 
 from app.database.create_tables import create_tables
 from app.database.repository import PsychologyTodayProfileRepository
+from app.directories.helpers import Helpers
 from app.directories.schemas import ClaimedProfile, ProfileScrapeSummary
 from app.directories.psychology_today.profile_enrichment import enrich_profile
 from app.infrastructure.proxies.service import ProxyPoolService
@@ -22,6 +23,7 @@ async def scrape_pending_profiles(
     max_profiles: int | None = None,
     status: Literal["pending", "failed"] = "pending",
     created_since: datetime | None = None,
+    created_within_hours: int | None = None,
     source_city: str | None = None,
     source_state: str | None = None,
     max_profile_attempts: int = 3,
@@ -40,6 +42,10 @@ async def scrape_pending_profiles(
         raise ValueError("max_profiles must be at least 1 when provided")
     if max_profile_attempts < 1:
         raise ValueError("max_profile_attempts must be at least 1")
+    if created_since is not None and created_within_hours is not None:
+        raise ValueError("Pass either created_since or created_within_hours, not both")
+    if created_within_hours is not None:
+        created_since = Helpers.utc_hours_ago(created_within_hours)
 
     await asyncio.to_thread(create_tables)
     repository = PsychologyTodayProfileRepository()
@@ -66,7 +72,9 @@ async def scrape_pending_profiles(
             claimed_slots += 1
             return True
 
-    async def increment(field: Literal["claimed", "completed", "requeued", "failed"]) -> None:
+    async def increment(
+        field: Literal["claimed", "completed", "requeued", "failed"],
+    ) -> None:
         async with summary_lock:
             setattr(summary, field, getattr(summary, field) + 1)
 
@@ -153,5 +161,9 @@ async def scrape_pending_profiles(
 
 
 if __name__ == "__main__":
-    result = asyncio.run(scrape_pending_profiles(worker_count=3, max_profiles=10))
+    result = asyncio.run(
+        scrape_pending_profiles(
+            worker_count=3, max_profiles=10, created_within_hours=72
+        )
+    )
     print(result.model_dump_json(indent=2))

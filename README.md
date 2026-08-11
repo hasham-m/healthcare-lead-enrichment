@@ -67,7 +67,9 @@ reliably used to raise `KeyboardInterrupt` inside an HTTP request.
   `pending`, records the error, and clears `profile_is_processing`.
 
 `scrape_pending_profiles()` supports optional `created_since`, `source_city`,
-and `source_state` filters. A successful scrape sets
+and `source_state` filters. It also accepts `created_within_hours` for a
+user-friendly UTC lookback window, such as `created_within_hours=24`.
+A successful scrape sets
 `profile_scrape_status=completed`, clears `profile_is_processing`, stamps
 `profile_scraped_at` in UTC, and queues website scraping by setting a null
 `website_scrape_status` to `pending`. Retryable errors return the profile to

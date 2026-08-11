@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -66,7 +67,11 @@ class Helpers:
     @staticmethod
     def load_proxies(csv_path: str | Path | None = None) -> list[str]:
         """Load enabled proxy URLs from the repository's local CSV file."""
-        path = Path(csv_path) if csv_path else Path(__file__).resolve().parents[2] / "proxies.csv"
+        path = (
+            Path(csv_path)
+            if csv_path
+            else Path(__file__).resolve().parents[2] / "proxies.csv"
+        )
         if not path.exists():
             return []
 
@@ -86,3 +91,9 @@ class Helpers:
                     raise ValueError(f"Invalid proxy URL in {path}: {proxy_url}")
                 proxies.append(proxy_url)
             return proxies
+
+    @staticmethod
+    def utc_hours_ago(hours: int) -> datetime:
+        if hours < 0:
+            raise ValueError("hours must be zero or greater")
+        return datetime.now(timezone.utc) - timedelta(hours=hours)

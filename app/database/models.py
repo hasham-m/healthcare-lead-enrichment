@@ -89,6 +89,9 @@ class PsychologyToday(Base):
         DateTime(timezone=True)
     )
     pt_website_redirect: Mapped[str | None] = mapped_column(Text)
+    website_redirect_url_is_processing: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
 
 class ScrapeRun(Base):

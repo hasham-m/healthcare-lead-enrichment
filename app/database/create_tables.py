@@ -21,6 +21,7 @@ def create_tables() -> None:
     add_profile_identity_and_processing_columns()
     add_website_resolution_columns()
     add_pt_website_redirect_column()
+    add_website_redirect_processing_column()
     create_proxy_pool_table()
     migrate_proxy_pool_schema()
 
@@ -187,6 +188,19 @@ def add_pt_website_redirect_column() -> None:
         )
 
 
+def add_website_redirect_processing_column() -> None:
+    """Append the website redirect processing flag to Psychology Today."""
+    engine = create_engine(database_url())
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE psychology_today "
+                "ADD COLUMN IF NOT EXISTS website_redirect_url_is_processing "
+                "BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
+
+
 def drop_psychology_today_table() -> None:
     """Drop the existing Psychology Today table, if it exists."""
     engine = create_engine(database_url())
@@ -206,3 +220,4 @@ if __name__ == "__main__":
     add_profile_identity_and_processing_columns()
     add_website_resolution_columns()
     add_pt_website_redirect_column()
+    add_website_redirect_processing_column()
