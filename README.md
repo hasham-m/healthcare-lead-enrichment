@@ -83,6 +83,27 @@ claims use `SKIP LOCKED`, set `website_redirect_url_is_processing`, and increase
 sets the resolution status to `completed`, stamps `website_resolved_at` in UTC,
 and only then queues `website_scrape_status=pending`.
 
+## Shared website resolution
+
+- `app/website_resolution/schemas.py` - Pydantic contracts for database-claimed
+  redirects, validated external website URLs, and worker summaries.
+- `app/website_resolution/service.py` - async database-backed workers that
+  lease proxies, transform a PT profile redirect into PT's server-side outbound
+  endpoint, read its 30x `Location` header, and save only validated external
+  URLs. The `timeout_seconds` parameter is a maximum request duration; a
+  redirect that resolves sooner is persisted and its session is closed
+  immediately.
+
+`resolve_pending_websites()` uses PostgreSQL directly as its work source and
+supports the same city, state, exact UTC datetime, and `created_within_hours`
+filters as profile enrichment. JavaScript-only redirects are intentionally not
+executed; PT redirects use the server-side outbound endpoint instead.
+
+`tests/website_resolution/regression/test_live_website_redirect_resolution.py`
+is a live regression runner for known Psychology Today redirect URLs. It uses
+the shared resolver and normal proxy leases, asserts each resolved external URL,
+prints JSON, and never claims or updates `psychology_today` rows.
+
 The profile parser reads leaf `div` values in Practice at a Glance (including
 waitlist/not-accepting availability messages) and reads Client Focus values
 from semantic `span[data-x="attribute-…"]` elements. It combines Age,
