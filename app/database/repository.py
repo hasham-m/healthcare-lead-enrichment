@@ -279,10 +279,21 @@ class PsychologyTodayWebsiteResolutionRepository:
             session.commit()
             return claimed_redirect
 
-    def complete_resolution(self, source_profile_id: str, website_url: str) -> bool:
-        """Store the resolved URL and queue its website scrape."""
+    def complete_resolution(
+        self,
+        source_profile_id: str,
+        website_url: str,
+        *,
+        destination_type: Literal["directory", "owned_website"],
+        website_scrape_eligible: bool,
+    ) -> bool:
+        """Store the resolved URL, classification, and eligible scrape state."""
         if not website_url.strip():
             raise ValueError("website_url must not be empty")
+        if destination_type == "directory" and website_scrape_eligible:
+            raise ValueError("Directory destinations cannot be scrape eligible")
+        if destination_type == "owned_website" and not website_scrape_eligible:
+            raise ValueError("Owned websites must be scrape eligible")
 
         with self._session_factory() as session:
             statement = (
@@ -295,11 +306,14 @@ class PsychologyTodayWebsiteResolutionRepository:
                 return False
 
             profile.website_url = website_url.strip()
+            profile.destination_type = destination_type
+            profile.website_scrape_eligible = website_scrape_eligible
             profile.website_resolution_status = "completed"
             profile.website_resolution_last_error = None
             profile.website_redirect_url_is_processing = False
             profile.website_resolved_at = datetime.now(timezone.utc)
-            profile.website_scrape_status = "pending"
+            if website_scrape_eligible:
+                profile.website_scrape_status = "pending"
             session.commit()
             return True
 

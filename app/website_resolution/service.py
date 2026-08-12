@@ -24,6 +24,29 @@ from app.website_resolution.schemas import (
 # PT's outbound endpoint must return one of these standard redirect statuses.
 _REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 
+# Exact directory domains; subdomains are also classified as directories.
+_DIRECTORY_DOMAINS = frozenset(
+    {
+        "headway.co",
+        "growtherapy.com",
+        "lifestance.com",
+        "helloalma.com",
+        "sondermind.com",
+        "rula.com",
+        "goodtherapy.org",
+        "therapyden.com",
+        "zocdoc.com",
+        "openpathcollective.org",
+        "mentalhealthmatch.com",
+        "therapytribe.com",
+        "therapist.com",
+        "inclusivetherapists.com",
+        "healthgrades.com",
+        "workable.com",
+        "cookieyes.com",
+    }
+)
+
 
 class WebsiteRedirectResolutionError(RuntimeError):
     """Raised when an available redirect does not resolve to an external website."""
@@ -31,7 +54,7 @@ class WebsiteRedirectResolutionError(RuntimeError):
 
 async def resolve_pending_websites(
     *,
-    worker_count: int = 3,
+    worker_count: int = 10,
     max_resolutions: int | None = None,
     status: Literal["pending", "failed"] = "pending",
     created_since: datetime | None = None,
@@ -178,10 +201,14 @@ async def resolve_pending_websites(
                         timeout_seconds,
                     )
 
+                # Classify the validated external host once before persisting it.
+                destination_type = _classify_destination(final_url)
                 # Validate the final external URL before it can be saved to the database.
                 resolution = WebsiteResolutionResult(
                     source_profile_id=claimed_redirect.source_profile_id,
                     website_url=final_url,
+                    destination_type=destination_type,
+                    website_scrape_eligible=(destination_type == "owned_website"),
                     resolved_at=datetime.now(timezone.utc),
                 )
                 # Persist the final URL and queue the next website-scrape stage.
@@ -189,6 +216,8 @@ async def resolve_pending_websites(
                     repository.complete_resolution,
                     resolution.source_profile_id,
                     resolution.website_url,
+                    destination_type=resolution.destination_type,
+                    website_scrape_eligible=resolution.website_scrape_eligible,
                 )
                 if not completed:
                     raise LookupError(
@@ -245,6 +274,20 @@ def build_psychology_today_redirect_endpoint(pt_redirect_url: str) -> str:
     return f"https://out.psychologytoday.com/us/profile/{parts[2]}/website-redirect"
 
 
+def _classify_destination(website_url: str) -> Literal["directory", "owned_website"]:
+    """Classify exact directory domains and their subdomains, never substrings."""
+    # Read the hostname from the already validated external website URL.
+    hostname = (urlparse(website_url).hostname or "").casefold()
+    # Treat only the known domain itself or a real subdomain as a directory.
+    if any(
+        hostname == domain or hostname.endswith(f".{domain}")
+        for domain in _DIRECTORY_DOMAINS
+    ):
+        return "directory"
+    # Unknown external domains are presumed therapist-owned and scrape eligible.
+    return "owned_website"
+
+
 async def _resolve_psychology_today_redirect(
     session: requests.AsyncSession,
     pt_redirect_url: str,
@@ -278,6 +321,8 @@ async def _resolve_psychology_today_redirect(
 if __name__ == "__main__":
     # Provide a small manual run without changing the function's reusable API.
     result = asyncio.run(
-        resolve_pending_websites(worker_count=3, max_resolutions=10, hours=48)
+        resolve_pending_websites(
+            worker_count=10, max_resolutions=10, created_within_hours=500
+        )
     )
     print(result.model_dump_json(indent=2))

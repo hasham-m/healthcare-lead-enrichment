@@ -100,6 +100,8 @@ async def resolve_regression_case(
         validated_resolution = WebsiteResolutionResult(
             source_profile_id="regression-test",
             website_url=resolved_url,
+            destination_type="owned_website",
+            website_scrape_eligible=True,
             resolved_at=datetime.now(timezone.utc),
         )
         # Compare canonical URLs so an optional final trailing slash is harmless.

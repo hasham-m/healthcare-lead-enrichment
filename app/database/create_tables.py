@@ -22,6 +22,7 @@ def create_tables() -> None:
     add_website_resolution_columns()
     add_pt_website_redirect_column()
     add_website_redirect_processing_column()
+    add_website_destination_columns()
     create_proxy_pool_table()
     migrate_proxy_pool_schema()
 
@@ -201,6 +202,23 @@ def add_website_redirect_processing_column() -> None:
         )
 
 
+def add_website_destination_columns() -> None:
+    """Append resolved website classification fields to Psychology Today."""
+    engine = create_engine(database_url())
+    columns = (
+        ("destination_type", "VARCHAR(30)"),
+        ("website_scrape_eligible", "BOOLEAN"),
+    )
+    with engine.begin() as connection:
+        for name, data_type in columns:
+            connection.execute(
+                text(
+                    f"ALTER TABLE psychology_today "
+                    f"ADD COLUMN IF NOT EXISTS {name} {data_type}"
+                )
+            )
+
+
 def drop_psychology_today_table() -> None:
     """Drop the existing Psychology Today table, if it exists."""
     engine = create_engine(database_url())
@@ -221,3 +239,4 @@ if __name__ == "__main__":
     add_website_resolution_columns()
     add_pt_website_redirect_column()
     add_website_redirect_processing_column()
+    add_website_destination_columns()

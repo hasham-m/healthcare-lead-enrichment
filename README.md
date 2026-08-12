@@ -83,6 +83,12 @@ claims use `SKIP LOCKED`, set `website_redirect_url_is_processing`, and increase
 sets the resolution status to `completed`, stamps `website_resolved_at` in UTC,
 and only then queues `website_scrape_status=pending`.
 
+Resolved URLs are classified in `app/website_resolution/service.py` with exact
+hostname or subdomain matching against known directory domains. A directory is
+stored as `destination_type=directory` with `website_scrape_eligible=false`;
+an external therapist-owned site is stored as `destination_type=owned_website`
+with `website_scrape_eligible=true` and is queued for website scraping.
+
 ## Shared website resolution
 
 - `app/website_resolution/schemas.py` - Pydantic contracts for database-claimed
@@ -103,6 +109,12 @@ executed; PT redirects use the server-side outbound endpoint instead.
 is a live regression runner for known Psychology Today redirect URLs. It uses
 the shared resolver and normal proxy leases, asserts each resolved external URL,
 prints JSON, and never claims or updates `psychology_today` rows.
+
+`tests/website_resolution/regression/test_directory_destination_classification.py`
+is a local JSON regression runner for known directory destinations. It returns
+the database-ready `destination_type=directory` and
+`website_scrape_eligible=false` values without HTTP requests, proxies, or
+database writes.
 
 The profile parser reads leaf `div` values in Practice at a Glance (including
 waitlist/not-accepting availability messages) and reads Client Focus values

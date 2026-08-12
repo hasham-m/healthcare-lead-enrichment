@@ -38,6 +38,8 @@ class PsychologyToday(Base):
     best_specialty: Mapped[str | None] = mapped_column(Text)
     client_focus: Mapped[str | None] = mapped_column(Text)
     website_url: Mapped[str | None] = mapped_column(Text)
+    destination_type: Mapped[str | None] = mapped_column(String(30))
+    website_scrape_eligible: Mapped[bool | None] = mapped_column(Boolean)
     phone_number: Mapped[str | None] = mapped_column(String(50))
     best_email: Mapped[str | None] = mapped_column(String(320))
     best_email_score: Mapped[float | None] = mapped_column(Float)

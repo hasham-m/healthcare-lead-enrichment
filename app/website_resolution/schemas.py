@@ -43,6 +43,10 @@ class WebsiteResolutionResult(BaseModel):
     source_profile_id: str
     # The final therapist website URL, after redirects have completed.
     website_url: str
+    # Whether the destination is another directory or a therapist-owned website.
+    destination_type: Literal["directory", "owned_website"]
+    # Whether the website scraper should process this resolved destination.
+    website_scrape_eligible: bool
     # UTC time when the final URL was resolved.
     resolved_at: datetime
 
