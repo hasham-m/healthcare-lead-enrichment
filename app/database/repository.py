@@ -357,6 +357,155 @@ class PsychologyTodayWebsiteResolutionRepository:
             return True
 
 
+class PsychologyTodayWebsiteScrapeRepository:
+    """Claim and finalize therapist-owned website scraping work."""
+
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
+        if session_factory is None:
+            engine = create_engine(database_url())
+            session_factory = sessionmaker(bind=engine)
+        self._session_factory = session_factory
+
+    def claim_next_website(
+        self,
+        *,
+        status: Literal["pending", "failed"] = "pending",
+        created_since: datetime | None = None,
+        source_city: str | None = None,
+        source_state: str | None = None,
+    ) -> dict[str, object] | None:
+        """Atomically claim one eligible, resolved website for scraping."""
+        filters = [
+            PsychologyToday.website_scrape_status == status,
+            PsychologyToday.website_scrape_eligible.is_(True),
+            PsychologyToday.website_url.is_not(None),
+            PsychologyToday.website_is_processing.is_(False),
+        ]
+        if created_since is not None:
+            filters.append(PsychologyToday.created_at >= created_since)
+        if source_city is not None:
+            filters.append(PsychologyToday.source_city == source_city)
+        if source_state is not None:
+            filters.append(PsychologyToday.source_state == source_state)
+
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(*filters)
+                .order_by(PsychologyToday.id.asc())
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return None
+
+            profile.website_is_processing = True
+            profile.website_scrape_attempts = (profile.website_scrape_attempts or 0) + 1
+            profile.website_scrape_last_error = None
+            session.flush()
+            claimed_website = {
+                "id": profile.id,
+                "source_profile_id": profile.source_profile_id,
+                "website_url": profile.website_url,
+                "website_scrape_attempts": profile.website_scrape_attempts,
+            }
+            session.commit()
+            return claimed_website
+
+    def complete_website_scrape(
+        self,
+        source_profile_id: str,
+        values: Mapping[str, object] | None = None,
+    ) -> bool:
+        """Save website enrichment data and mark the website scrape completed."""
+        protected_fields = {
+            "id",
+            "source_profile_id",
+            "website_url",
+            "website_scrape_status",
+            "website_scrape_attempts",
+            "website_scrape_last_error",
+            "website_scraped_at",
+            "website_is_processing",
+            "website_scrape_eligible",
+        }
+        allowed_fields = {
+            "best_email",
+            "best_email_score",
+            "all_emails",
+            "website_best_specialty",
+            "website_all_specialties",
+            "category",
+            "category_source",
+            "evidence_snippets",
+            "category_score",
+            "category_evidence",
+        }
+
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(PsychologyToday.source_profile_id == source_profile_id)
+                .with_for_update()
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return False
+
+            for field, value in (values or {}).items():
+                if field in protected_fields or field not in allowed_fields:
+                    raise ValueError(f"Field cannot be changed during website completion: {field}")
+                setattr(profile, field, value)
+
+            profile.website_scrape_status = "completed"
+            profile.website_is_processing = False
+            profile.website_scrape_eligible = False
+            profile.website_scraped_at = datetime.now(timezone.utc)
+            session.commit()
+            return True
+
+    def fail_website_scrape(self, source_profile_id: str, error: str) -> bool:
+        """Record a terminal website scrape failure and release the row."""
+        return self._finish_website_scrape(
+            source_profile_id,
+            status="failed",
+            error=error,
+        )
+
+    def release_website_claim(self, source_profile_id: str, error: str) -> bool:
+        """Return a retryable website scrape failure to pending."""
+        return self._finish_website_scrape(
+            source_profile_id,
+            status="pending",
+            error=error,
+        )
+
+    def _finish_website_scrape(
+        self,
+        source_profile_id: str,
+        *,
+        status: Literal["pending", "failed"],
+        error: str,
+    ) -> bool:
+        """Persist an error and clear the processing flag after a worker attempt."""
+        with self._session_factory() as session:
+            statement = (
+                select(PsychologyToday)
+                .where(PsychologyToday.source_profile_id == source_profile_id)
+                .with_for_update()
+            )
+            profile = session.scalar(statement)
+            if profile is None:
+                return False
+
+            profile.website_scrape_status = status
+            profile.website_scrape_last_error = error
+            profile.website_is_processing = False
+            session.commit()
+            return True
+
+
 class ScrapeRunRepository:
     """Repository for tracking directory scrape progress."""
 

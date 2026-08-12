@@ -116,6 +116,21 @@ the database-ready `destination_type=directory` and
 `website_scrape_eligible=false` values without HTTP requests, proxies, or
 database writes.
 
+## Website scraping repository
+
+- `app/database/repository.py` - `PsychologyTodayWebsiteScrapeRepository`
+  claims only pending, eligible, resolved therapist-owned websites using
+  `FOR UPDATE SKIP LOCKED`, marks `website_is_processing=true`, and increments
+  `website_scrape_attempts` before releasing the row lock.
+- `app/website_scraping/schemas/models.py` - Pydantic `ClaimedWebsite` and
+  `WebsiteScrapeEnrichment` contracts for the future async website worker.
+
+Successful completion stores website-derived emails, specialties, category, and
+evidence fields; sets `website_scrape_status=completed`; clears
+`website_is_processing`; sets `website_scrape_eligible=false`; and stamps
+`website_scraped_at` in UTC. Retryable failures return rows to pending, while
+terminal failures are marked failed.
+
 The profile parser reads leaf `div` values in Practice at a Glance (including
 waitlist/not-accepting availability messages) and reads Client Focus values
 from semantic `span[data-x="attribute-…"]` elements. It combines Age,
