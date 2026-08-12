@@ -131,6 +131,14 @@ evidence fields; sets `website_scrape_status=completed`; clears
 `website_scraped_at` in UTC. Retryable failures return rows to pending, while
 terminal failures are marked failed.
 
+`app/website_scraping/website_enrichment.py` extracts emails from `mailto:`
+links, visible text, and conservative obfuscated forms. It ranks deduplicated
+emails from 0–90 using page priority, source type, therapist-name matching,
+website/free-provider domain quality, repeated page evidence, and operational
+address penalties. Scores of 70+ are strong, 60–69 are usable, 40–59 are weak,
+and candidates below 40 are not selected as `best_email`. Evidence is stored as
+JSON text. Website specialties and category fields remain empty for now.
+
 The profile parser reads leaf `div` values in Practice at a Glance (including
 waitlist/not-accepting availability messages) and reads Client Focus values
 from semantic `span[data-x="attribute-…"]` elements. It combines Age,

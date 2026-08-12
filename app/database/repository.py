@@ -409,6 +409,8 @@ class PsychologyTodayWebsiteScrapeRepository:
                 "source_profile_id": profile.source_profile_id,
                 "website_url": profile.website_url,
                 "website_scrape_attempts": profile.website_scrape_attempts,
+                "first_name": profile.first_name,
+                "last_name": profile.last_name,
             }
             session.commit()
             return claimed_website

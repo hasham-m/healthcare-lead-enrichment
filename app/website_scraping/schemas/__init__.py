@@ -2,7 +2,16 @@
 
 from app.website_scraping.schemas.models import (
     ClaimedWebsite,
+    EmailObservation,
+    ScoredEmail,
+    WebsitePage,
     WebsiteScrapeEnrichment,
 )
 
-__all__ = ["ClaimedWebsite", "WebsiteScrapeEnrichment"]
+__all__ = [
+    "ClaimedWebsite",
+    "EmailObservation",
+    "ScoredEmail",
+    "WebsitePage",
+    "WebsiteScrapeEnrichment",
+]
