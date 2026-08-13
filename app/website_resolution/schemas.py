@@ -15,13 +15,9 @@ class ClaimedWebsiteRedirect(BaseModel):
     # Ignore extra database fields so the claim payload can grow safely later.
     model_config = ConfigDict(extra="ignore")
 
-    # Internal row identifier, useful for logging and future metrics.
     id: int
-    # Directory-specific profile identifier, used to finalize the same row.
     source_profile_id: str
-    # Psychology Today redirect URL that should lead to the external website.
     pt_website_redirect: str
-    # Number of resolution attempts after this claim incremented the counter.
     website_resolution_attempts: int
 
     @field_validator("pt_website_redirect")
@@ -39,15 +35,10 @@ class ClaimedWebsiteRedirect(BaseModel):
 class WebsiteResolutionResult(BaseModel):
     """A validated final external URL returned by redirect resolution."""
 
-    # The database row that should receive this resolved URL.
     source_profile_id: str
-    # The final therapist website URL, after redirects have completed.
     website_url: str
-    # Whether the destination is another directory or a therapist-owned website.
     destination_type: Literal["directory", "owned_website"]
-    # Whether the website scraper should process this resolved destination.
     website_scrape_eligible: bool
-    # UTC time when the final URL was resolved.
     resolved_at: datetime
 
     @field_validator("website_url")
@@ -68,17 +59,11 @@ class WebsiteResolutionResult(BaseModel):
 class WebsiteResolutionSummary(BaseModel):
     """Counters returned by one async website-resolution run."""
 
-    # Number of database redirects claimed by this run.
     claimed: int = 0
-    # Number of redirects resolved to a validated external website.
     completed: int = 0
-    # Number of retryable failures returned to pending.
     requeued: int = 0
-    # Number of terminal failures after the configured attempt limit.
     failed: int = 0
-    # UTC time at which the worker run started.
     started_at: datetime
-    # UTC time at which all workers finished.
     finished_at: datetime | None = None
 
 

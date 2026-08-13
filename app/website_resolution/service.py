@@ -44,6 +44,8 @@ _DIRECTORY_DOMAINS = frozenset(
         "healthgrades.com",
         "workable.com",
         "cookieyes.com",
+        "instagram.com",
+        "rula.com",
     }
 )
 

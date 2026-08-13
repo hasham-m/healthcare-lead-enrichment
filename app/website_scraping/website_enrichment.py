@@ -119,7 +119,20 @@ _REJECTED_EMAIL_DOMAINS = frozenset(
     }
 )
 _REJECTED_TLDS = frozenset(
-    {"css", "gif", "ico", "jpeg", "jpg", "js", "png", "svg", "ttf", "webp", "woff", "woff2"}
+    {
+        "css",
+        "gif",
+        "ico",
+        "jpeg",
+        "jpg",
+        "js",
+        "png",
+        "svg",
+        "ttf",
+        "webp",
+        "woff",
+        "woff2",
+    }
 )
 
 
@@ -256,7 +269,9 @@ def enrich_website_emails(
         first_name=first_name,
         last_name=last_name,
     )
-    retained_emails = [candidate for candidate in scored_emails if candidate.score >= 20]
+    retained_emails = [
+        candidate for candidate in scored_emails if candidate.score >= 20
+    ]
     best_candidate = retained_emails[0] if retained_emails else None
     if best_candidate is not None and best_candidate.score < 40:
         best_candidate = None
@@ -397,15 +412,15 @@ def _score_email_observations(
 def _email_page_bonus(page_url: str) -> int:
     """Convert crawl priority into an email-confidence contribution."""
     return {
-        0: 10,
-        10: 20,
-        20: 16,
-        30: 8,
-        40: 14,
-        50: 5,
-        60: 2,
-        80: -8,
-        200: -20,
+        0: 2,
+        10: 6,
+        20: 4,
+        30: 2,
+        40: 4,
+        50: 1,
+        60: 0,
+        80: -3,
+        200: -6,
     }.get(get_url_priority(page_url), 0)
 
 
@@ -431,7 +446,9 @@ def _email_name_bonus(
 
 def _email_domain_bonus(email_domain: str, website_url: str) -> int:
     """Prefer the website's own domain, then trusted personal email providers."""
-    website_host = (urlparse(website_url).hostname or "").casefold().removeprefix("www.")
+    website_host = (
+        (urlparse(website_url).hostname or "").casefold().removeprefix("www.")
+    )
     domain = email_domain.casefold().removeprefix("www.")
     if website_host and (
         domain == website_host
@@ -488,8 +505,7 @@ def _normalize_obfuscated_email_text(value: str) -> str:
     value = re.sub(
         r"\b([a-z0-9._%+-]+)\s+at\s+([a-z0-9-]+(?:\s+dot\s+[a-z0-9-]+)+)\b",
         lambda match: (
-            f"{match.group(1)}@"
-            + re.sub(r"\s+dot\s+", ".", match.group(2), flags=re.I)
+            f"{match.group(1)}@" + re.sub(r"\s+dot\s+", ".", match.group(2), flags=re.I)
         ),
         value,
         flags=re.I,
