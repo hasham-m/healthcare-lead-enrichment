@@ -6,6 +6,7 @@ import json
 import re
 from collections.abc import Iterable
 from html import unescape
+from os.path import commonprefix
 from urllib.parse import unquote, urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
@@ -366,6 +367,13 @@ def _score_email_observations(
             score -= 35
         if len(grouped) == 1:
             score += 5
+        if (
+            _email_name_bonus(local_part, first_name, last_name) >= 15
+            and _email_domain_bonus(email_domain, website_url) >= 15
+        ):
+            # A named address with a matching website brand is highly reliable,
+            # regardless of which fetched page exposed it.
+            score = max(score, 90)
 
         evidence = list(
             dict.fromkeys(
@@ -431,9 +439,18 @@ def _email_domain_bonus(email_domain: str, website_url: str) -> int:
         or website_host.endswith(f".{domain}")
     ):
         return 20
+    if _domains_share_brand_token(domain, website_host):
+        return 15
     if domain in _FREE_EMAIL_DOMAINS:
         return 10
     return -12
+
+
+def _domains_share_brand_token(first_domain: str, second_domain: str) -> bool:
+    """Recognize a substantial shared brand token across two different domains."""
+    first_label = first_domain.split(".", 1)[0]
+    second_label = second_domain.split(".", 1)[0]
+    return len(commonprefix((first_label, second_label))) >= 8
 
 
 def _extract_valid_emails(value: str) -> list[str]:
