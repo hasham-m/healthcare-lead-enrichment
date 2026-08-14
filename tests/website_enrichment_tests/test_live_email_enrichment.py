@@ -23,7 +23,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from app.website_scraping.schemas import WebsitePage
-from app.website_scraping.website_enrichment import (
+from app.website_scraping.email_enrichment import (
     clean_website_url,
     enrich_website_emails,
     get_url_priority,

@@ -131,7 +131,7 @@ evidence fields; sets `website_scrape_status=completed`; clears
 `website_scraped_at` in UTC. Retryable failures return rows to pending, while
 terminal failures are marked failed.
 
-`app/website_scraping/website_enrichment.py` extracts emails from `mailto:`
+`app/website_scraping/email_enrichment.py` extracts emails from `mailto:`
 links, visible text, and conservative obfuscated forms. It ranks deduplicated
 emails from 0–90 using page priority, source type, therapist-name matching,
 website/free-provider domain quality, repeated page evidence, and operational

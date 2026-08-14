@@ -1,10 +1,8 @@
-"""Pydantic contracts for claiming and enriching therapist-owned websites."""
+"""Pydantic contracts shared across the website-scraping layer."""
 
 from __future__ import annotations
 
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class ClaimedWebsite(BaseModel):
@@ -25,25 +23,6 @@ class WebsitePage(BaseModel):
 
     page_url: str
     html: str
-
-
-class EmailObservation(BaseModel):
-    """One occurrence of an email found on one website page."""
-
-    email: str
-    page_url: str
-    source: Literal["mailto", "text"]
-    snippet: str
-
-
-class ScoredEmail(BaseModel):
-    """One deduplicated email with its score and supporting evidence."""
-
-    email: str
-    score: int = Field(ge=0, le=90)
-    pages: list[str]
-    sources: list[Literal["mailto", "text"]]
-    evidence: list[str]
 
 
 class WebsiteScrapeEnrichment(BaseModel):
