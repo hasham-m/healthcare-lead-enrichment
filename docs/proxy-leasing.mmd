@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant A as Worker A
+    participant DB as Proxy Pool
+    participant B as Worker B
+    A->>DB: Acquire proxy
+    DB-->>A: Proxy 7 + Token AAA
+    Note over A,DB: Lease eventually expires
+    B->>DB: Acquire available proxy
+    DB-->>B: Proxy 7 + Token BBB
+    A->>DB: Release Proxy 7 with AAA
+    DB-->>A: Rejected - stale ownership
+    B->>DB: Release Proxy 7 with BBB
+    DB-->>B: Released

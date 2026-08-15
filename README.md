@@ -84,3 +84,54 @@ The worker changes the processing state while holding the database lock and then
 <p align="center">
   <sub>Concurrent workers claim independent pending rows through PostgreSQL.</sub>
 </p>
+
+**database row locks are not held while HTTP requests are running**.
+
+```text
+BEGIN
+↓
+SELECT ... FOR UPDATE SKIP LOCKED
+↓
+processing = true
+attempts += 1
+↓
+COMMIT
+↓
+HTTP processing happens outside the transaction
+```
+---
+
+## Time-bounded Proxy Leasing
+
+Proxies are not represented using only:
+
+```text
+is_in_use = true / false
+```
+
+Instead, a proxy acquisition creates a time-bounded ownership lease containing:
+
+``text 
+proxy 
+lease_token
+lease_until 
+times_used
+```
+Release and renewal functions must provide the existing lease token for a specific proxy.
+
+This prevents stale workers from modifying a proxy that has already expired and been assigned to another worker.
+
+
+<p align="center">
+  <a href="docs/proxy-leasing.svg">
+    <img
+      src="docs/proxy-leasing.svg"
+      width="750"
+      alt="Time-bounded Proxy Leasing and Ownership Validation"
+    >
+  </a>
+</p>
+
+<p align="center">
+  <sub>Proxy leases use ownership tokens so stale workers cannot release proxies that have already been reassigned.</sub>
+</p>
