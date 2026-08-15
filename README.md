@@ -27,73 +27,60 @@ Each stage persists its output to PostgreSQL and only queues the next stage afte
 
 # Architecture
 
-```mermaid
----
-config:
-  flowchart:
-    useMaxWidth: false
-    diagramPadding: 5
-    rankSpacing: 25
-    nodeSpacing: 25
----
-flowchart TD 
- 
-    INPUT["Therapist Directory URL"] 
- 
-    S1["Stage 1<br/>Collect Directory Listings"] 
- 
-    DB1["Database<br/>Insert Unique Profiles<br/>profile_scrape_status = pending"] 
- 
-    READY2["Pending Profiles<br/>Ready for Enrichment"] 
- 
-    S2["Stage 2<br/>Scrape + Enrich PT Profile"] 
- 
-    DB2["Database<br/>profile_scrape_status = completed<br/>website_resolution_status = pending"] 
- 
-    READY3["Pending Website<br/>Resolution"] 
- 
-    S3["Stage 3<br/>Resolve External Website<br/>via PT Outbound Endpoint"] 
- 
-    DEST{"Destination Type?"} 
- 
-    DIRECTORY["Database<br/>Store Resolved URL<br/>website_resolution_status = completed<br/>website_scrape_eligible = false"] 
- 
-    OWNED["Database<br/>Store Resolved URL<br/>website_resolution_status = completed<br/>website_scrape_eligible = true<br/>website_scrape_status = pending"] 
- 
-    READY4["Pending Website<br/>Ready for Enrichment"] 
- 
-    S4["Stage 4<br/>Crawl Therapist Website<br/>+ Enrich Lead Data"] 
- 
-    DB4["Database<br/>website_scrape_status = completed<br/>Persist Website Enrichment"] 
- 
-    DONE["Structured<br/>Enriched Lead Record"] 
- 
- 
-    INPUT --> S1 
- 
-    S1 --> DB1 
- 
-    DB1 --> READY2 
- 
-    READY2 --> S2 
- 
-    S2 --> DB2 
- 
-    DB2 --> READY3 
- 
-    READY3 --> S3 
- 
-    S3 --> DEST 
- 
-    DEST -->|Known Directory| DIRECTORY 
- 
-    DEST -->|Owned Website| OWNED 
- 
-    OWNED --> READY4 
- 
-    READY4 --> S4 
- 
-    S4 --> DB4 
- 
-    DB4 --> DONE
+<p align="center">
+  <img
+    src="docs/architecture.svg"
+    height="850"
+    alt="Therapist Lead Intelligence Pipeline Architecture"
+  >
+</p>
+
+PostgreSQL is used for more than final storage.
+
+It also provides:
+
+- persistent pipeline state
+- Workers claiming unique rows concurrently
+- retry state
+- attempt counters
+- proxy ownership
+- resumability
+- communication between independent stages
+
+The four processing stages are seperated:
+
+```text
+Stage 1 does not need Stage 2 to be running. 
+Stage 2 does not need Stage 3 to be running.
+Stage 3 does not need Stage 4 to be running.
 ```
+
+Each stage creates persistent work that can be consumed later. 
+
+---
+
+# Engineering Highlights
+
+## PostgreSQL-backed Concurrent Workers
+
+Stages that process individual profiles i.e **profile_url, Website_resolution or Website scraping** use PostgreSQL itself as the work coordinator.
+
+Workers claim pending rows using:
+
+```sql SELECT ... FOR UPDATE SKIP LOCKED; ```
+
+The worker changes the processing state while holding the database lock and then commits immediately. Another worker attempting to claim work skips the already-claimed row and moves to another pending profile.
+
+<p align="center">
+  <a href="docs/concurrent-workers.svg">
+    <img
+      src="docs/concurrent-workers.svg"
+      width="750"
+      alt="PostgreSQL-backed Concurrent Worker Coordination"
+    >
+  </a>
+</p>
+
+<p align="center">
+  <sub>Concurrent workers claim independent pending rows through PostgreSQL.</sub>
+</p>

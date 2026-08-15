@@ -1,0 +1,20 @@
+sequenceDiagram
+
+    participant W1 as Worker 1
+    participant DB as PostgreSQL
+    participant W2 as Worker 2
+    participant W3 as Worker 3
+
+    W1->>DB: Claim pending profile
+    DB-->>W1: Profile 101
+
+    W2->>DB: Claim pending profile
+    Note over DB: Profile 101 already claimed
+    DB-->>W2: Profile 102
+
+    W3->>DB: Claim pending profile
+    DB-->>W3: Profile 103
+
+    W1->>DB: Complete Profile 101
+    W2->>DB: Complete Profile 102
+    W3->>DB: Complete Profile 103
