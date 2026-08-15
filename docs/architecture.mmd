@@ -1,0 +1,70 @@
+```mermaid
+---
+config:
+  flowchart:
+    useMaxWidth: false
+    diagramPadding: 5
+    rankSpacing: 25
+    nodeSpacing: 25
+---
+flowchart TD 
+ 
+    INPUT["Therapist Directory URL"] 
+ 
+    S1["Stage 1<br/>Collect Directory Listings"] 
+ 
+    DB1["Database<br/>Insert Unique Profiles<br/>profile_scrape_status = pending"] 
+ 
+    READY2["Pending Profiles<br/>Ready for Enrichment"] 
+ 
+    S2["Stage 2<br/>Scrape + Enrich PT Profile"] 
+ 
+    DB2["Database<br/>profile_scrape_status = completed<br/>website_resolution_status = pending"] 
+ 
+    READY3["Pending Website<br/>Resolution"] 
+ 
+    S3["Stage 3<br/>Resolve External Website<br/>via PT Outbound Endpoint"] 
+ 
+    DEST{"Destination Type?"} 
+ 
+    DIRECTORY["Database<br/>Store Resolved URL<br/>website_resolution_status = completed<br/>website_scrape_eligible = false"] 
+ 
+    OWNED["Database<br/>Store Resolved URL<br/>website_resolution_status = completed<br/>website_scrape_eligible = true<br/>website_scrape_status = pending"] 
+ 
+    READY4["Pending Website<br/>Ready for Enrichment"] 
+ 
+    S4["Stage 4<br/>Crawl Therapist Website<br/>+ Enrich Lead Data"] 
+ 
+    DB4["Database<br/>website_scrape_status = completed<br/>Persist Website Enrichment"] 
+ 
+    DONE["Structured<br/>Enriched Lead Record"] 
+ 
+ 
+    INPUT --> S1 
+ 
+    S1 --> DB1 
+ 
+    DB1 --> READY2 
+ 
+    READY2 --> S2 
+ 
+    S2 --> DB2 
+ 
+    DB2 --> READY3 
+ 
+    READY3 --> S3 
+ 
+    S3 --> DEST 
+ 
+    DEST -->|Known Directory| DIRECTORY 
+ 
+    DEST -->|Owned Website| OWNED 
+ 
+    OWNED --> READY4 
+ 
+    READY4 --> S4 
+ 
+    S4 --> DB4 
+ 
+    DB4 --> DONE
+```
