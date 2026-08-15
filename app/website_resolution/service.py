@@ -324,7 +324,7 @@ if __name__ == "__main__":
     # Provide a small manual run without changing the function's reusable API.
     result = asyncio.run(
         resolve_pending_websites(
-            worker_count=10, max_resolutions=10, created_within_hours=500
+            worker_count=10, max_resolutions=100, created_within_hours=24
         )
     )
     print(result.model_dump_json(indent=2))

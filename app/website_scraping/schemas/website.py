@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ClaimedWebsite(BaseModel):
@@ -38,3 +40,15 @@ class WebsiteScrapeEnrichment(BaseModel):
     evidence_snippets: str | None = None
     category_score: float | None = None
     category_evidence: str | None = None
+
+
+class WebsiteScrapeSummary(BaseModel):
+    """Counters and timestamps returned by one website-scraping worker run."""
+
+    started_at: datetime
+    finished_at: datetime | None = None
+    claimed: int = 0
+    completed: int = 0
+    requeued: int = 0
+    failed: int = 0
+    pages_scraped: int = 0

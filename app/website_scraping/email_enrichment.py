@@ -7,7 +7,7 @@ import re
 from collections.abc import Iterable
 from html import unescape
 from os.path import commonprefix
-from urllib.parse import unquote, urljoin, urlparse, urlunparse
+from urllib.parse import unquote, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -17,45 +17,7 @@ from app.website_scraping.schemas import (
     WebsitePage,
     WebsiteScrapeEnrichment,
 )
-
-
-_SKIPPED_LINK_PREFIXES = ("mailto:", "tel:", "sms:", "javascript:", "#")
-
-_CONTACT_KEYWORDS = (
-    "contact",
-    "appointment",
-    "schedule",
-    "book",
-    "consult",
-    "intake",
-    "get-started",
-    "start-here",
-)
-_ABOUT_KEYWORDS = ("about", "meet", "bio", "our-story")
-_SERVICE_KEYWORDS = (
-    "service",
-    "services",
-    "therapy",
-    "therapies",
-    "counseling",
-    "counselling",
-    "treatment",
-    "specialties",
-    "specialty",
-    "areas",
-)
-_TEAM_KEYWORDS = ("team", "staff", "therapists", "clinicians", "providers")
-_FAQ_KEYWORDS = ("faq", "faqs", "questions")
-_CONTENT_KEYWORDS = ("blog", "article", "articles", "post", "news", "resources")
-_LOW_VALUE_KEYWORDS = (
-    "privacy",
-    "terms",
-    "cookie",
-    "cookies",
-    "disclaimer",
-    "accessibility",
-    "sitemap",
-)
+from app.website_scraping.helpers import get_url_priority
 
 _EMAIL_PATTERN = re.compile(
     r"(?<![\w.+-])"
@@ -134,116 +96,6 @@ _REJECTED_TLDS = frozenset(
         "woff2",
     }
 )
-
-
-def clean_website_url(raw_url: object) -> str:
-    """Return a fetchable HTTPS URL from a database website value.
-
-    Example:
-        ``drseamans.com`` becomes ``https://drseamans.com``.
-    """
-    # Database values can be null, empty, or non-string values.
-    if raw_url is None:
-        return ""
-
-    # Normalize surrounding whitespace before validating the URL shape.
-    url = str(raw_url).strip()
-    if not url:
-        return ""
-
-    # Convert protocol-relative links to HTTPS rather than leaving them ambiguous.
-    if url.startswith("//"):
-        return f"https:{url}"
-
-    # Preserve explicit HTTP(S) URLs exactly as supplied after whitespace cleanup.
-    if url.casefold().startswith(("http://", "https://")):
-        return url
-
-    # Database website values without a scheme should default to secure HTTPS.
-    return f"https://{url}"
-
-
-def normalize_page_url(href: object, current_page_url: str) -> str:
-    """Convert one raw page link into a normalized absolute HTTP(S) URL.
-
-    Fragments, unsupported protocols, credentials, and trailing non-root slashes
-    are removed. Query parameters are retained because they can identify a real
-    website page or resource.
-    """
-    # A link must be a non-empty string before it can be resolved.
-    if not isinstance(href, str):
-        return ""
-    href = href.strip()
-    if not href or href.casefold().startswith(_SKIPPED_LINK_PREFIXES):
-        return ""
-
-    # Resolve relative, root-relative, and protocol-relative links consistently.
-    full_url = urljoin(current_page_url, href)
-    parsed = urlparse(full_url)
-    scheme = parsed.scheme.casefold()
-    netloc = parsed.netloc.casefold()
-
-    # Only web pages with a valid hostname are candidates for future crawling.
-    if scheme not in {"http", "https"} or not netloc:
-        return ""
-
-    # Never retain credentials if a malformed page link happened to include them.
-    hostname = parsed.hostname
-    if not hostname:
-        return ""
-    host_with_port = hostname.casefold()
-    if parsed.port is not None:
-        host_with_port = f"{host_with_port}:{parsed.port}"
-
-    # Use a root path when absent and trim cosmetic trailing slashes elsewhere.
-    path = parsed.path or "/"
-    if path != "/":
-        path = path.rstrip("/")
-
-    # Drop params/fragments while retaining query parameters that may be meaningful.
-    return urlunparse((scheme, host_with_port, path, "", parsed.query, ""))
-
-
-def is_same_netloc(base_url: str, page_url: str) -> bool:
-    """Return whether two valid HTTP(S) URLs use the same hostname.
-
-    Ports and a leading ``www.`` do not make a website subpage external.
-    """
-    base_host = (urlparse(base_url).hostname or "").casefold().removeprefix("www.")
-    page_host = (urlparse(page_url).hostname or "").casefold().removeprefix("www.")
-    return bool(base_host and page_host) and base_host == page_host
-
-
-def get_url_priority(page_url: str) -> int:
-    """Return a crawl priority where lower scores are visited earlier.
-
-    Contact and appointment pages rank first because they are most likely to
-    contain direct email addresses; legal and blog pages rank last.
-    """
-    path = urlparse(page_url).path.casefold().strip("/")
-    if not path:
-        return 0
-    if _path_has_keyword(path, _CONTACT_KEYWORDS):
-        return 10
-    if _path_has_keyword(path, _ABOUT_KEYWORDS):
-        return 20
-    if _path_has_keyword(path, _SERVICE_KEYWORDS):
-        return 30
-    if _path_has_keyword(path, _TEAM_KEYWORDS):
-        return 40
-    if _path_has_keyword(path, _FAQ_KEYWORDS):
-        return 50
-    if _path_has_keyword(path, _LOW_VALUE_KEYWORDS):
-        return 200
-    if _path_has_keyword(path, _CONTENT_KEYWORDS):
-        return 80
-    return 60
-
-
-def _path_has_keyword(path: str, keywords: tuple[str, ...]) -> bool:
-    """Match keywords against individual URL path segments where possible."""
-    segments = tuple(segment for segment in path.split("/") if segment)
-    return any(keyword in segment for segment in segments for keyword in keywords)
 
 
 def enrich_website_emails(

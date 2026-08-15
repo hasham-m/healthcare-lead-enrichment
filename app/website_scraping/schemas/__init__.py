@@ -8,6 +8,7 @@ from app.website_scraping.schemas.website import (
     ClaimedWebsite,
     WebsitePage,
     WebsiteScrapeEnrichment,
+    WebsiteScrapeSummary,
 )
 from app.website_scraping.schemas.categorization import (
     PracticeCategorizationResult,
@@ -20,4 +21,5 @@ __all__ = [
     "ScoredEmail",
     "WebsitePage",
     "WebsiteScrapeEnrichment",
+    "WebsiteScrapeSummary",
 ]

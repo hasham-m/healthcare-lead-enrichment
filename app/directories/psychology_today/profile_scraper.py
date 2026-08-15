@@ -163,7 +163,7 @@ async def scrape_pending_profiles(
 if __name__ == "__main__":
     result = asyncio.run(
         scrape_pending_profiles(
-            worker_count=3, max_profiles=10, created_within_hours=72
+            worker_count=5, max_profiles=100, created_within_hours=24
         )
     )
     print(result.model_dump_json(indent=2))

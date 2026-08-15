@@ -122,8 +122,9 @@ database writes.
   claims only pending, eligible, resolved therapist-owned websites using
   `FOR UPDATE SKIP LOCKED`, marks `website_is_processing=true`, and increments
   `website_scrape_attempts` before releasing the row lock.
-- `app/website_scraping/schemas/models.py` - Pydantic `ClaimedWebsite` and
-  `WebsiteScrapeEnrichment` contracts for the future async website worker.
+- `app/website_scraping/schemas/website.py` - shared Pydantic website contracts;
+  `schemas/email.py` and `schemas/categorization.py` hold their layer-specific
+  email and practice-categorisation contracts.
 
 Successful completion stores website-derived emails, specialties, category, and
 evidence fields; sets `website_scrape_status=completed`; clears
@@ -131,13 +132,22 @@ evidence fields; sets `website_scrape_status=completed`; clears
 `website_scraped_at` in UTC. Retryable failures return rows to pending, while
 terminal failures are marked failed.
 
-`app/website_scraping/email_enrichment.py` extracts emails from `mailto:`
+`app/website_scraping/helpers.py` centralizes clean URL, normalized subpage URL,
+same-netloc, and heap-priority helpers. `app/website_scraping/email_enrichment.py`
+extracts emails from `mailto:`
 links, visible text, and conservative obfuscated forms. It ranks deduplicated
 emails from 0–90 using page priority, source type, therapist-name matching,
 website/free-provider domain quality, repeated page evidence, and operational
 address penalties. Scores of 70+ are strong, 60–69 are usable, 40–59 are weak,
 and candidates below 40 are not selected as `best_email`. Evidence is stored as
 JSON text. Website specialties and category fields remain empty for now.
+
+`app/website_scraping/website_scraper.py` provides async workers for the final
+website-enrichment layer. It claims pending, eligible websites directly from
+PostgreSQL, uses one proxy lease for one complete website session, crawls unique
+same-netloc pages in `heapq` priority order (eight pages by default), renews a
+long-running lease, then combines email and practice-categorisation results
+before completing or requeuing the claimed row.
 
 The profile parser reads leaf `div` values in Practice at a Glance (including
 waitlist/not-accepting availability messages) and reads Client Focus values
