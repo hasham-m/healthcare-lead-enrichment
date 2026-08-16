@@ -4,3 +4,7 @@
 # Windows command scripts require/prefer CRLF
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Fixture HTML is test data, not application source code.
+tests/psychology_today/fixtures/** linguist-generated=true
+tests/website_enrichment_tests/fixtures/** linguist-generated=true
