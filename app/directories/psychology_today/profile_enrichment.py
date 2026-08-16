@@ -27,7 +27,7 @@ _SELF_PAY_TERMS = (
 
 
 def enrich_profile(html: str, profile_url: str) -> ProfileEnrichment:
-    """Extract the currently supported fields from a Psychology Today profile."""
+    # Extract the currently supported fields from an individual Psychology Today profile.
     soup = BeautifulSoup(html, "html.parser")
     page_text = _text(soup)
     practice_text = _section_text(soup, "My Practice at a Glance")
@@ -50,12 +50,8 @@ def enrich_profile(html: str, profile_url: str) -> ProfileEnrichment:
             *_split_focus_items(
                 _subsection_items(soup, "Client Focus", "Participants")
             ),
-            *_split_focus_items(
-                _subsection_items(soup, "Client Focus", "Communities")
-            ),
-            *_split_focus_items(
-                _subsection_items(soup, "Client Focus", "Ethnicity")
-            ),
+            *_split_focus_items(_subsection_items(soup, "Client Focus", "Communities")),
+            *_split_focus_items(_subsection_items(soup, "Client Focus", "Ethnicity")),
         ]
     )
     insurance_items = _unique(_subsection_items(soup, "Finances", "Insurance"))
@@ -146,10 +142,9 @@ def _subsection_items(soup: BeautifulSoup, section: str, subsection: str) -> lis
             continue
         if element.name in {"h2", "h3"}:
             break
-        is_attribute_span = (
-            element.name == "span"
-            and str(element.get("data-x", "")).startswith("attribute-")
-        )
+        is_attribute_span = element.name == "span" and str(
+            element.get("data-x", "")
+        ).startswith("attribute-")
         if element.name == "li" or is_attribute_span:
             value = _text(element)
             if value:

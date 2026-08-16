@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import uuid4
@@ -77,6 +77,102 @@ class ProfileRepository:
                 PsychologyToday.source_profile_id == source_profile_id,
             )
             return session.scalar(statement)
+
+
+DEFAULT_LEAD_EXPORT_COLUMNS = (
+    "id", "directory", "source_profile_id", "profile_id", "profile_url",
+    "source_state", "source_city", "first_name", "last_name", "phone_number",
+    "all_specialties", "best_specialty", "client_focus", "client_focus_primary",
+    "client_focus_secondary", "insurance_details", "payment_category", "fee_raw",
+    "fee_clean", "availability_status", "number_of_cities_served",
+    "service_area_cities", "website_url", "destination_type", "best_email",
+    "best_email_score", "all_emails",
+    "website_best_specialty", "website_all_specialties", "category", "category_source",
+    "category_score", "evidence_snippets", "category_evidence",
+)
+
+
+class LeadExportRepository:
+    """Read-only filtered exports of lead data from ``psychology_today``."""
+
+    def __init__(self, session_factory: sessionmaker[Session] | None = None) -> None:
+        if session_factory is None:
+            engine = create_engine(database_url())
+            session_factory = sessionmaker(bind=engine)
+        self._session_factory = session_factory
+
+    def fetch_leads(
+        self,
+        *,
+        columns: Sequence[str] | None = None,
+        directory: str | None = None,
+        source_city: str | None = None,
+        source_state: str | None = None,
+        profile_scrape_status: str | None = None,
+        website_resolution_status: str | None = None,
+        website_scrape_status: str | None = None,
+        website_scrape_eligible: bool | None = None,
+        created_since: datetime | None = None,
+        filters: Mapping[str, object] | None = None,
+    ) -> list[dict[str, object]]:
+        """Return requested lead columns using only supplied optional filters.
+
+        ``filters`` accepts any mapped ``PsychologyToday`` field. Scalar values
+        use equality; non-string sequences use SQL ``IN``; ``None`` is ignored.
+        """
+        selected_columns = self._validated_columns(
+            columns or DEFAULT_LEAD_EXPORT_COLUMNS
+        )
+        filter_values: dict[str, object] = {
+            "directory": directory,
+            "source_city": source_city,
+            "source_state": source_state,
+            "profile_scrape_status": profile_scrape_status,
+            "website_resolution_status": website_resolution_status,
+            "website_scrape_status": website_scrape_status,
+            "website_scrape_eligible": website_scrape_eligible,
+        }
+        filter_values.update(filters or {})
+
+        predicates = []
+        for column_name, value in filter_values.items():
+            if value is None:
+                continue
+            column = self._model_column(column_name)
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                predicates.append(column.in_(value))
+            else:
+                predicates.append(column == value)
+        if created_since is not None:
+            predicates.append(PsychologyToday.created_at >= created_since)
+
+        with self._session_factory() as session:
+            statement = (
+                select(
+                    *(self._model_column(column_name) for column_name in selected_columns)
+                )
+                .where(*predicates)
+                .order_by(PsychologyToday.id.asc())
+            )
+            return [dict(row) for row in session.execute(statement).mappings()]
+
+    @staticmethod
+    def _validated_columns(columns: Sequence[str]) -> tuple[str, ...]:
+        """Validate requested export names and retain the caller's order."""
+        if not columns:
+            raise ValueError("At least one export column is required")
+        return tuple(
+            LeadExportRepository._model_column(column_name).key
+            for column_name in columns
+        )
+
+    @staticmethod
+    def _model_column(column_name: str):
+        """Return a safe mapped column or reject an unknown public field."""
+        column = getattr(PsychologyToday, column_name, None)
+        if column is None or not hasattr(column, "key"):
+            raise ValueError(f"Unknown psychology_today column: {column_name}")
+        return column
 
 
 class PsychologyTodayProfileRepository:

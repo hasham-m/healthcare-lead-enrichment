@@ -30,9 +30,9 @@ async def scrape_pending_profiles(
     proxy: str | None = None,
     proxy_csv_path: str | Path | None = None,
 ) -> ProfileScrapeSummary:
-    """Enrich claimed profiles concurrently, with PostgreSQL as the work queue.
+    # Enrich claimed profiles concurrently, with PostgreSQL as the work queue.
 
-    Each worker claims one row directly from PostgreSQL with ``SKIP LOCKED``.
+    """Each worker claims one row directly from PostgreSQL with ``SKIP LOCKED``.
     It then uses one proxy lease for that profile HTTP session, parses the page,
     persists the enrichment fields, and claims another row until none remain.
     """
@@ -163,7 +163,7 @@ async def scrape_pending_profiles(
 if __name__ == "__main__":
     result = asyncio.run(
         scrape_pending_profiles(
-            worker_count=5, max_profiles=100, created_within_hours=24
+            worker_count=10, max_profiles=150, created_within_hours=24
         )
     )
     print(result.model_dump_json(indent=2))

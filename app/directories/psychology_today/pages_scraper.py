@@ -377,6 +377,6 @@ if __name__ == "__main__":
     result = scrape_profile_urls(
         start_url="https://www.psychologytoday.com/us/therapists/ne/omaha",
         max_profiles=150,
-        max_pages=5,
+        max_pages=10,
     )
     print(f"Scraped {len(result['profiles'])} Psychology Today profiles.")

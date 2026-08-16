@@ -30,7 +30,7 @@ class ProxyLease(BaseModel):
 
 
 class ProxyPoolService:
-    """Synchronize CSV proxy definitions and read usable database proxies."""
+    # Synchronize CSV proxy definitions and read usable database proxies.
 
     def __init__(
         self,
